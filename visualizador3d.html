@@ -1,0 +1,3418 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Visualizador 3D — GeoElevation</title>
+  <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Exo+2:wght@300;400;600&display=swap"
+    rel="stylesheet">
+  <style>
+    *,
+    *::before,
+    *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0
+    }
+
+    :root {
+      --bg-deep: #0d1117;
+      --bg-panel: #131c27;
+      --bg-item: #1a2535;
+      --bg-hover: #1f2e42;
+      --border: #1e3048;
+      --accent: #00c8ff;
+      --accent-dim: #0a8fb0;
+      --accent-glow: rgba(0, 200, 255, 0.18);
+      --text-primary: #c8ddf0;
+      --text-muted: #4a6b8a;
+      --text-cat: #00c8ff;
+      --font-mono: 'Share Tech Mono', monospace;
+      --font-body: 'Exo 2', sans-serif;
+      --sidebar-w: 230px;
+    }
+
+    html,
+    body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: var(--bg-deep);
+      color: var(--text-primary);
+      font-family: var(--font-body);
+      font-size: 13px;
+    }
+
+    /* Topbar */
+    #topbar {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 36px;
+      background: #0d1117;
+      border-bottom: 1px solid #1e3048;
+      display: flex;
+      align-items: center;
+      padding: 0 16px;
+      gap: 12px;
+      z-index: 500;
+    }
+
+    .tb-logo {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: .12em;
+      color: var(--accent);
+      text-transform: uppercase;
+    }
+
+    .tb-logo span {
+      color: #2a4a6a;
+    }
+
+    .tb-divider {
+      width: 1px;
+      height: 20px;
+      background: #1e3048;
+    }
+
+    .tb-info {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      color: #2a6b9a;
+      letter-spacing: .05em;
+    }
+
+    #tb-pts-count {
+      color: var(--accent);
+      font-weight: 700;
+    }
+
+    .tb-back {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      padding: 5px 14px;
+      border: 1px solid #1e3048;
+      background: transparent;
+      color: #4a6b8a;
+      cursor: pointer;
+      transition: all .15s;
+    }
+
+    .tb-back:hover {
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+
+    .tb-import {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      padding: 5px 14px;
+      border: 1px solid #1a4a2a;
+      background: rgba(0, 200, 100, .07);
+      color: #00c864;
+      cursor: pointer;
+      transition: all .15s;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-left: auto;
+    }
+
+    .tb-import:hover {
+      border-color: #00c864;
+      background: rgba(0, 200, 100, .18);
+      color: #00ff88;
+    }
+
+    #editpt-modal {
+      display: none;
+      position: fixed;
+      inset: 0;
+      z-index: 950;
+      background: rgba(5, 12, 22, .88);
+      align-items: center;
+      justify-content: center;
+    }
+
+    #editpt-modal.show {
+      display: flex;
+    }
+
+    .editpt-box {
+      background: #131c27;
+      border: 1px solid var(--border);
+      width: 320px;
+      max-width: 95vw;
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 0 40px rgba(255, 68, 136, .15);
+    }
+
+    .editpt-header {
+      padding: 14px 18px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .editpt-title {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: .14em;
+      color: #ff4488;
+      text-transform: uppercase;
+    }
+
+    .editpt-body {
+      padding: 18px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .editpt-row {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .editpt-lbl {
+      font-family: var(--font-mono);
+      font-size: 9px;
+      letter-spacing: .1em;
+      color: var(--text-muted);
+      text-transform: uppercase;
+    }
+
+    .editpt-input {
+      background: #0d1117;
+      border: 1px solid var(--border);
+      color: var(--text-primary);
+      font-family: var(--font-mono);
+      font-size: 11px;
+      padding: 6px 10px;
+      outline: none;
+      width: 100%;
+    }
+
+    .editpt-input:focus {
+      border-color: #ff4488;
+    }
+
+    .editpt-color-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    #editpt-color {
+      width: 48px;
+      height: 32px;
+      border: 1px solid var(--border);
+      background: none;
+      cursor: pointer;
+      padding: 2px;
+    }
+
+    .editpt-footer {
+      padding: 12px 18px;
+      border-top: 1px solid var(--border);
+      display: flex;
+      gap: 8px;
+      justify-content: flex-end;
+    }
+
+    #prefs-modal {
+      display: none;
+      position: fixed;
+      inset: 0;
+      z-index: 900;
+      background: rgba(5, 12, 22, .88);
+      align-items: center;
+      justify-content: center;
+    }
+
+    #prefs-modal.show {
+      display: flex;
+    }
+
+    .prefs-box {
+      background: #131c27;
+      border: 1px solid var(--border);
+      width: 380px;
+      max-width: 95vw;
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 0 40px rgba(0, 200, 255, .12);
+    }
+
+    .prefs-header {
+      padding: 14px 18px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .prefs-title {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: .14em;
+      color: var(--accent);
+      text-transform: uppercase;
+    }
+
+    .prefs-body {
+      padding: 18px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .prefs-group {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .prefs-group-title {
+      font-family: var(--font-mono);
+      font-size: 9px;
+      letter-spacing: .12em;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 4px;
+    }
+
+    .prefs-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+    }
+
+    .prefs-lbl {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      color: var(--text-primary);
+      flex: 1;
+    }
+
+    .prefs-lbl small {
+      display: block;
+      color: var(--text-muted);
+      font-size: 9px;
+      margin-top: 1px;
+    }
+
+    .prefs-input {
+      width: 80px;
+      background: #0d1117;
+      border: 1px solid var(--border);
+      color: var(--accent);
+      font-family: var(--font-mono);
+      font-size: 11px;
+      padding: 5px 8px;
+      outline: none;
+      text-align: right;
+    }
+
+    .prefs-input:focus {
+      border-color: var(--accent);
+    }
+
+    .prefs-footer {
+      padding: 12px 18px;
+      border-top: 1px solid var(--border);
+      display: flex;
+      gap: 8px;
+      justify-content: flex-end;
+    }
+
+    #excel-modal {
+      display: none;
+      position: fixed;
+      inset: 0;
+      z-index: 900;
+      background: rgba(5, 12, 22, .88);
+      align-items: center;
+      justify-content: center;
+    }
+
+    #excel-modal.show {
+      display: flex;
+    }
+
+    .excel-box {
+      background: #131c27;
+      border: 1px solid var(--border);
+      width: 520px;
+      max-width: 95vw;
+      max-height: 90vh;
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 0 40px rgba(0, 200, 100, .12);
+    }
+
+    .excel-header {
+      padding: 14px 18px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .excel-title {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: .14em;
+      color: #00c864;
+      text-transform: uppercase;
+    }
+
+    .excel-close {
+      background: transparent;
+      border: none;
+      color: #4a6b8a;
+      font-size: 18px;
+      cursor: pointer;
+      padding: 0 4px;
+      line-height: 1;
+    }
+
+    .excel-close:hover {
+      color: #ff4455;
+    }
+
+    .excel-body {
+      padding: 18px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    .excel-drop {
+      border: 2px dashed #1e4a2a;
+      background: rgba(0, 200, 100, .04);
+      padding: 28px 20px;
+      text-align: center;
+      cursor: pointer;
+      transition: all .2s;
+      position: relative;
+    }
+
+    .excel-drop:hover,
+    .excel-drop.drag {
+      border-color: #00c864;
+      background: rgba(0, 200, 100, .1);
+    }
+
+    .excel-drop-icon {
+      font-size: 28px;
+      margin-bottom: 8px;
+    }
+
+    .excel-drop-txt {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: #00c864;
+      letter-spacing: .08em;
+    }
+
+    .excel-drop-sub {
+      font-family: var(--font-mono);
+      font-size: 9px;
+      color: var(--text-muted);
+      margin-top: 4px;
+    }
+
+    .excel-drop input {
+      position: absolute;
+      inset: 0;
+      opacity: 0;
+      cursor: pointer;
+      width: 100%;
+      height: 100%;
+    }
+
+    .excel-col-map {
+      display: none;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .excel-col-map.show {
+      display: flex;
+    }
+
+    .col-map-title {
+      font-family: var(--font-mono);
+      font-size: 9px;
+      color: var(--text-muted);
+      letter-spacing: .1em;
+      text-transform: uppercase;
+    }
+
+    .col-map-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+
+    .col-map-row {
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+    }
+
+    .col-map-lbl {
+      font-family: var(--font-mono);
+      font-size: 9px;
+      color: var(--accent);
+      letter-spacing: .06em;
+    }
+
+    .col-map-sel {
+      background: #0d1117;
+      border: 1px solid var(--border);
+      color: var(--text-primary);
+      font-family: var(--font-mono);
+      font-size: 11px;
+      padding: 5px 8px;
+      outline: none;
+      width: 100%;
+    }
+
+    .col-map-sel:focus {
+      border-color: #00c864;
+    }
+
+    .excel-preview {
+      display: none;
+      max-height: 160px;
+      overflow-y: auto;
+      border: 1px solid var(--border);
+      font-family: var(--font-mono);
+      font-size: 10px;
+    }
+
+    .excel-preview.show {
+      display: block;
+    }
+
+    .excel-preview table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    .excel-preview th {
+      background: #0d1117;
+      color: #00c864;
+      padding: 4px 8px;
+      text-align: left;
+      font-size: 9px;
+      letter-spacing: .08em;
+      border-bottom: 1px solid var(--border);
+      position: sticky;
+      top: 0;
+    }
+
+    .excel-preview td {
+      padding: 3px 8px;
+      color: var(--text-primary);
+      border-bottom: 1px solid rgba(30, 48, 72, .4);
+      font-size: 10px;
+    }
+
+    .excel-preview tr:hover td {
+      background: rgba(0, 200, 100, .04);
+    }
+
+    .excel-status {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      padding: 6px 10px;
+      border-radius: 2px;
+      display: none;
+    }
+
+    .excel-status.show {
+      display: block;
+    }
+
+    .excel-status.ok {
+      background: rgba(0, 200, 100, .1);
+      border: 1px solid #1a4a2a;
+      color: #00c864;
+    }
+
+    .excel-status.err {
+      background: rgba(255, 60, 60, .1);
+      border: 1px solid #4a1a1a;
+      color: #ff6060;
+    }
+
+    .excel-footer {
+      padding: 12px 18px;
+      border-top: 1px solid var(--border);
+      display: flex;
+      gap: 8px;
+      justify-content: flex-end;
+    }
+
+    .excel-btn-cancel {
+      padding: 7px 18px;
+      background: transparent;
+      border: 1px solid #1e3048;
+      color: #4a6b8a;
+      font-family: var(--font-mono);
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      cursor: pointer;
+      transition: all .15s;
+    }
+
+    .excel-btn-cancel:hover {
+      border-color: #ff4455;
+      color: #ff4455;
+    }
+
+    .excel-btn-ok {
+      padding: 7px 20px;
+      background: rgba(0, 200, 100, .1);
+      border: 1px solid #00c864;
+      color: #00c864;
+      font-family: var(--font-mono);
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      cursor: pointer;
+      transition: all .15s;
+    }
+
+    .excel-btn-ok:hover {
+      background: #00c864;
+      color: #0d1117;
+    }
+
+    .excel-btn-ok:disabled {
+      opacity: .35;
+      cursor: not-allowed;
+    }
+
+    /* Layout */
+    #app {
+      display: flex;
+      width: 100%;
+      height: 100%;
+      padding-top: 36px;
+    }
+
+    #sidebar-left {
+      width: var(--sidebar-w);
+      min-width: var(--sidebar-w);
+      background: var(--bg-panel);
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      overflow-y: auto;
+      scrollbar-width: thin;
+      scrollbar-color: var(--border) transparent;
+    }
+
+    #sidebar-left::-webkit-scrollbar {
+      width: 4px;
+    }
+
+    #sidebar-left::-webkit-scrollbar-thumb {
+      background: var(--border);
+      border-radius: 2px;
+    }
+
+    .dist-mode-btn {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 11px 16px;
+      cursor: pointer;
+      background: transparent;
+      border: none;
+      border-bottom: 1px solid rgba(30, 48, 72, .5);
+      color: var(--text-primary);
+      font-family: var(--font-body);
+      font-size: 12.5px;
+      width: 100%;
+      text-align: left;
+      transition: background .15s, color .15s;
+    }
+
+    .dist-mode-btn:hover {
+      background: var(--bg-hover);
+      color: var(--accent);
+    }
+
+    .dist-mode-btn.active {
+      background: rgba(255, 200, 0, .08);
+      color: #ffc800;
+      border-left: 2px solid #ffc800;
+    }
+
+    .dist-mode-btn .dbtn-icon {
+      width: 30px;
+      height: 30px;
+      border-radius: 5px;
+      border: 1px solid rgba(30, 48, 72, .8);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      background: rgba(13, 17, 23, .6);
+      font-size: 14px;
+    }
+
+    .dist-mode-btn:hover .dbtn-icon,
+    .dist-mode-btn.active .dbtn-icon {
+      border-color: #ffc800;
+      background: rgba(255, 200, 0, .1);
+    }
+
+    .dbtn-text {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .dbtn-label {
+      font-size: 12px;
+      font-weight: 600;
+    }
+
+    .dbtn-desc {
+      font-family: var(--font-mono);
+      font-size: 9px;
+      color: var(--text-muted);
+      letter-spacing: .04em;
+    }
+
+    #dist-results {
+      padding: 10px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .dist-item {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      color: var(--text-primary);
+      background: rgba(255, 200, 0, .05);
+      border: 1px solid rgba(255, 200, 0, .15);
+      padding: 5px 8px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .dist-item span {
+      color: #ffc800;
+      font-weight: 700;
+    }
+
+    .dist-total {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: #ffc800;
+      border-top: 1px solid rgba(255, 200, 0, .2);
+      padding-top: 6px;
+      text-align: right;
+      font-weight: 700;
+    }
+
+    .dist-hint {
+      padding: 8px 16px;
+      font-family: var(--font-mono);
+      font-size: 9px;
+      color: var(--text-muted);
+      line-height: 1.7;
+      border-top: 1px solid var(--border);
+    }
+
+    .dist-clear-btn {
+      margin: 0 16px 10px;
+      padding: 5px;
+      background: transparent;
+      border: 1px solid #1e3048;
+      color: #4a6b8a;
+      font-family: var(--font-mono);
+      font-size: 9px;
+      letter-spacing: .06em;
+      text-transform: uppercase;
+      cursor: pointer;
+      transition: all .15s;
+      width: calc(100% - 32px);
+    }
+
+    .dist-clear-btn:hover {
+      border-color: #ff4455;
+      color: #ff4455;
+    }
+
+    .dist-inactive {
+      padding: 20px 16px;
+      font-family: var(--font-mono);
+      font-size: 10px;
+      color: var(--text-muted);
+      text-align: center;
+      line-height: 1.7;
+    }
+
+    .addpt-panel {
+      padding: 10px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      border-top: 1px solid var(--border);
+    }
+
+    .addpt-panel.hidden {
+      display: none;
+    }
+
+    .addpt-input {
+      background: #0d1117;
+      border: 1px solid var(--border);
+      color: var(--text-primary);
+      font-family: var(--font-mono);
+      font-size: 11px;
+      padding: 5px 8px;
+      outline: none;
+      width: 100%;
+    }
+
+    .addpt-input:focus {
+      border-color: #ffc800;
+    }
+
+    .addpt-input::placeholder {
+      color: var(--text-muted);
+    }
+
+    .addpt-btn {
+      width: 100%;
+      padding: 6px;
+      background: rgba(255, 200, 0, .1);
+      border: 1px solid #ffc800;
+      color: #ffc800;
+      font-family: var(--font-mono);
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      cursor: pointer;
+      transition: all .15s;
+    }
+
+    .addpt-btn:hover {
+      background: #ffc800;
+      color: #0d1117;
+    }
+
+    .addpt-status {
+      font-family: var(--font-mono);
+      font-size: 9px;
+      padding: 4px 6px;
+      display: none;
+    }
+
+    .addpt-status.show {
+      display: block;
+    }
+
+    .addpt-status.ok {
+      color: #00c864;
+    }
+
+    .addpt-status.err {
+      color: #ff6060;
+    }
+
+    .addpt-mode-btn {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 11px 16px;
+      cursor: pointer;
+      background: transparent;
+      border: none;
+      border-bottom: 1px solid rgba(30, 48, 72, .5);
+      color: var(--text-primary);
+      font-family: var(--font-body);
+      font-size: 12.5px;
+      width: 100%;
+      text-align: left;
+      transition: background .15s, color .15s;
+    }
+
+    .addpt-mode-btn:hover {
+      background: var(--bg-hover);
+      color: #ffc800;
+    }
+
+    .addpt-mode-btn.active {
+      background: rgba(255, 200, 0, .08);
+      color: #ffc800;
+      border-left: 2px solid #ffc800;
+    }
+
+    .addpt-mode-btn .dbtn-icon {
+      width: 30px;
+      height: 30px;
+      border-radius: 5px;
+      border: 1px solid rgba(30, 48, 72, .8);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      background: rgba(13, 17, 23, .6);
+      font-size: 14px;
+    }
+
+    .addpt-mode-btn:hover .dbtn-icon,
+    .addpt-mode-btn.active .dbtn-icon {
+      border-color: #ffc800;
+      background: rgba(255, 200, 0, .1);
+    }
+
+    /* Viewport */
+    #viewport {
+      flex: 1;
+      position: relative;
+      overflow: hidden;
+      background: #0a1520;
+    }
+
+    #three-canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+    }
+
+    /* Axis HUD */
+    #axis-hud {
+      position: absolute;
+      bottom: 28px;
+      right: calc(var(--sidebar-w) + 16px);
+      width: 80px;
+      height: 80px;
+      pointer-events: none;
+    }
+
+    #axis-canvas {
+      width: 80px;
+      height: 80px;
+    }
+
+    /* Status bar */
+    #statusbar {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      height: 22px;
+      background: rgba(10, 20, 32, .9);
+      border-top: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      padding: 0 12px;
+      gap: 24px;
+      font-family: var(--font-mono);
+      font-size: 10px;
+      color: var(--text-muted);
+      pointer-events: none;
+    }
+
+    #statusbar span {
+      color: var(--accent-dim);
+    }
+
+    /* Right Sidebar */
+    #sidebar-right {
+      width: var(--sidebar-w);
+      min-width: var(--sidebar-w);
+      background: var(--bg-panel);
+      border-left: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      overflow-y: auto;
+      scrollbar-width: thin;
+      scrollbar-color: var(--border) transparent;
+    }
+
+    #sidebar-right::-webkit-scrollbar {
+      width: 4px;
+    }
+
+    #sidebar-right::-webkit-scrollbar-thumb {
+      background: var(--border);
+      border-radius: 2px;
+    }
+
+    .panel-section-header {
+      padding: 12px 16px 8px;
+      border-bottom: 1px solid var(--border);
+      font-family: var(--font-mono);
+      font-size: 9px;
+      font-weight: 700;
+      letter-spacing: .14em;
+      color: var(--text-cat);
+      text-transform: uppercase;
+      background: rgba(0, 200, 255, .04);
+    }
+
+    /* Graph buttons */
+    .graph-btn {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 11px 16px;
+      cursor: pointer;
+      background: transparent;
+      border: none;
+      border-bottom: 1px solid rgba(30, 48, 72, .5);
+      color: var(--text-primary);
+      font-family: var(--font-body);
+      font-size: 12.5px;
+      width: 100%;
+      text-align: left;
+      transition: background .15s, color .15s;
+    }
+
+    .graph-btn:hover {
+      background: var(--bg-hover);
+      color: var(--accent);
+    }
+
+    .graph-btn.active {
+      background: var(--accent-glow);
+      color: var(--accent);
+      border-left: 2px solid var(--accent);
+    }
+
+    .graph-btn .gbtn-icon {
+      width: 30px;
+      height: 30px;
+      border-radius: 5px;
+      border: 1px solid rgba(30, 48, 72, .8);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      background: rgba(13, 17, 23, .6);
+    }
+
+    .graph-btn:hover .gbtn-icon,
+    .graph-btn.active .gbtn-icon {
+      border-color: var(--accent);
+      background: rgba(0, 200, 255, .08);
+    }
+
+    .gbtn-text {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .gbtn-label {
+      font-size: 12px;
+      font-weight: 600;
+    }
+
+    .gbtn-desc {
+      font-family: var(--font-mono);
+      font-size: 9px;
+      color: var(--text-muted);
+      letter-spacing: .04em;
+    }
+
+    /* Area config panel */
+    #area-config {
+      display: none;
+      padding: 10px 16px;
+      border-bottom: 1px solid var(--border);
+      background: rgba(0, 200, 255, .03);
+    }
+
+    #area-config.show {
+      display: block;
+    }
+
+    .cfg-label {
+      font-family: var(--font-mono);
+      font-size: 9px;
+      letter-spacing: .1em;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      margin-bottom: 4px;
+    }
+
+    .cfg-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 8px;
+    }
+
+    .cfg-select {
+      flex: 1;
+      background: #0d1117;
+      border: 1px solid var(--border);
+      color: var(--text-primary);
+      font-family: var(--font-mono);
+      font-size: 11px;
+      padding: 5px 8px;
+      outline: none;
+      cursor: pointer;
+    }
+
+    .cfg-select:focus {
+      border-color: var(--accent);
+    }
+
+    .cfg-apply {
+      width: 100%;
+      padding: 7px;
+      background: rgba(0, 200, 255, .1);
+      border: 1px solid var(--accent);
+      color: var(--accent);
+      font-family: var(--font-mono);
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      cursor: pointer;
+      transition: all .15s;
+    }
+
+    .cfg-apply:hover {
+      background: var(--accent);
+      color: #0d1117;
+    }
+
+    .cfg-clear {
+      width: 100%;
+      margin-top: 4px;
+      padding: 5px;
+      background: transparent;
+      border: 1px solid #1e3048;
+      color: #4a6b8a;
+      font-family: var(--font-mono);
+      font-size: 9px;
+      letter-spacing: .06em;
+      text-transform: uppercase;
+      cursor: pointer;
+      transition: all .15s;
+    }
+
+    .cfg-clear:hover {
+      border-color: #ff4455;
+      color: #ff4455;
+    }
+
+    /* Separator */
+    .section-sep {
+      height: 1px;
+      background: var(--border);
+      margin: 4px 0;
+    }
+
+    /* Points list */
+    .pts-header {
+      padding: 8px 16px 4px;
+      font-family: var(--font-mono);
+      font-size: 9px;
+      letter-spacing: .12em;
+      color: var(--text-cat);
+      text-transform: uppercase;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .pts-badge {
+      font-family: var(--font-mono);
+      font-size: 9px;
+      background: rgba(0, 200, 255, .12);
+      color: var(--accent);
+      padding: 1px 8px;
+      border-radius: 12px;
+    }
+
+    .pts-list {
+      max-height: 200px;
+      overflow-y: auto;
+      scrollbar-width: thin;
+      scrollbar-color: var(--border) transparent;
+    }
+
+    .pts-list::-webkit-scrollbar {
+      width: 4px;
+    }
+
+    .pts-list::-webkit-scrollbar-thumb {
+      background: var(--border);
+      border-radius: 2px;
+    }
+
+    .pts-item {
+      padding: 4px 16px;
+      font-family: var(--font-mono);
+      font-size: 10px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      border-bottom: 1px solid rgba(30, 48, 72, .3);
+    }
+
+    .pts-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    .pts-dot.type-A {
+      background: #ff6b35;
+    }
+
+    .pts-dot.type-L {
+      background: #7c6cff;
+    }
+
+    .pts-dot.type-P {
+      background: #3dffc0;
+    }
+
+    .pts-label {
+      flex: 1;
+      color: var(--text-primary);
+    }
+
+    .pts-elev {
+      color: var(--accent);
+      font-size: 9px;
+    }
+
+    .pts-empty {
+      padding: 20px 16px;
+      font-family: var(--font-mono);
+      font-size: 10px;
+      color: var(--text-muted);
+      text-align: center;
+      line-height: 1.7;
+    }
+
+    /* Options */
+    .options-area {
+      padding: 8px 16px;
+    }
+
+    .opt-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 4px 0;
+      font-size: 12px;
+      color: var(--text-primary);
+      cursor: pointer;
+    }
+
+    .opt-row input[type="checkbox"] {
+      accent-color: var(--accent);
+      width: 13px;
+      height: 13px;
+    }
+
+    .hint-row {
+      padding: 4px 16px 10px;
+      font-family: var(--font-mono);
+      font-size: 9px;
+      color: var(--text-muted);
+      line-height: 1.7;
+    }
+
+    /* ── Línea sobre terreno ── */
+    .linea-panel {
+      padding: 10px 16px;
+      display: none;
+      flex-direction: column;
+      gap: 7px;
+      border-top: 1px solid var(--border);
+    }
+
+    .linea-panel.visible {
+      display: flex;
+    }
+
+    .linea-cfg-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+
+    .linea-cfg-lbl {
+      font-family: var(--font-mono);
+      font-size: 9px;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: .06em;
+      flex: 1;
+    }
+
+    .linea-cfg-color {
+      width: 40px;
+      height: 26px;
+      border: 1px solid var(--border);
+      background: none;
+      cursor: pointer;
+      padding: 2px;
+    }
+
+    .linea-cfg-range {
+      width: 80px;
+      accent-color: var(--accent);
+    }
+
+    .linea-cfg-val {
+      font-family: var(--font-mono);
+      font-size: 9px;
+      color: var(--accent);
+      width: 22px;
+      text-align: right;
+    }
+
+    .linea-pt-indicator {
+      font-family: var(--font-mono);
+      font-size: 9px;
+      color: var(--text-muted);
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+    }
+
+    .linea-pt-indicator span {
+      padding: 3px 7px;
+      background: rgba(0, 200, 255, .06);
+      border: 1px solid rgba(0, 200, 255, .15);
+      border-radius: 2px;
+      transition: color .15s, border-color .15s;
+    }
+
+    .linea-pt-indicator span.picked {
+      color: var(--accent);
+      border-color: var(--accent);
+    }
+
+    .linea-pt-indicator span.waiting {
+      color: #ffc800;
+      border-color: rgba(255, 200, 0, .4);
+    }
+
+    .linea-clear-btn {
+      padding: 4px;
+      background: transparent;
+      border: 1px solid #1e3048;
+      color: #4a6b8a;
+      font-family: var(--font-mono);
+      font-size: 9px;
+      letter-spacing: .06em;
+      text-transform: uppercase;
+      cursor: pointer;
+      transition: all .15s;
+      width: 100%;
+    }
+
+    .linea-clear-btn:hover {
+      border-color: #ff4455;
+      color: #ff4455;
+    }
+
+    .linea-list {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      max-height: 140px;
+      overflow-y: auto;
+      scrollbar-width: thin;
+      scrollbar-color: var(--border) transparent;
+    }
+
+    .linea-item {
+      font-family: var(--font-mono);
+      font-size: 9px;
+      color: var(--text-primary);
+      background: rgba(0, 200, 255, .04);
+      border: 1px solid rgba(0, 200, 255, .12);
+      padding: 4px 7px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 6px;
+    }
+
+    .linea-item-swatch {
+      width: 10px;
+      height: 10px;
+      border-radius: 2px;
+      flex-shrink: 0;
+    }
+
+    .linea-item-del {
+      background: transparent;
+      border: none;
+      color: #4a6b8a;
+      cursor: pointer;
+      font-size: 11px;
+      padding: 0 2px;
+      line-height: 1;
+    }
+
+    .linea-item-del:hover {
+      color: #ff4455;
+    }
+
+    /* Panel info línea seleccionada */
+    #linea-info-panel {
+      display: none;
+      flex-direction: column;
+      gap: 0;
+    }
+
+    #linea-info-panel.show {
+      display: flex;
+    }
+
+    .linea-info-row {
+      padding: 8px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .linea-info-lbl {
+      font-family: var(--font-mono);
+      font-size: 9px;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: .08em;
+    }
+
+    .linea-info-val {
+      font-family: var(--font-mono);
+      font-size: 12px;
+      color: var(--accent);
+      font-weight: 700;
+    }
+
+    .linea-info-empty {
+      padding: 18px 16px;
+      font-family: var(--font-mono);
+      font-size: 10px;
+      color: var(--text-muted);
+      text-align: center;
+      line-height: 1.7;
+    }
+
+    /* Modal puntos */
+    #pts-modal {
+      display: none;
+      position: fixed;
+      inset: 0;
+      z-index: 900;
+      background: rgba(5, 12, 22, .88);
+      align-items: center;
+      justify-content: center;
+    }
+
+    #pts-modal.show {
+      display: flex;
+    }
+
+    .pts-modal-box {
+      background: #131c27;
+      border: 1px solid var(--border);
+      width: 340px;
+      max-width: 95vw;
+      max-height: 80vh;
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 0 40px rgba(0, 200, 255, .12);
+    }
+
+    .pts-modal-header {
+      padding: 13px 18px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .pts-modal-title {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: .14em;
+      color: var(--accent);
+      text-transform: uppercase;
+    }
+
+    .pts-modal-body {
+      overflow-y: auto;
+      flex: 1;
+      scrollbar-width: thin;
+      scrollbar-color: var(--border) transparent;
+    }
+
+    /* No-data overlay */
+    #no-data-overlay {
+      display: none;
+      position: absolute;
+      inset: 0;
+      z-index: 10;
+      background: rgba(10, 20, 32, .92);
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    #no-data-overlay.show {
+      display: flex;
+    }
+
+    .ndo-icon {
+      font-size: 40px;
+      opacity: .4;
+    }
+
+    .ndo-title {
+      font-family: var(--font-mono);
+      font-size: 14px;
+      color: var(--accent);
+      letter-spacing: .1em;
+      text-transform: uppercase;
+    }
+
+    .ndo-msg {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      color: var(--text-muted);
+      text-align: center;
+      line-height: 1.8;
+      max-width: 300px;
+    }
+
+    .ndo-btn {
+      margin-top: 6px;
+      padding: 9px 24px;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      border: 1px solid var(--accent);
+      background: rgba(0, 200, 255, .08);
+      color: var(--accent);
+      cursor: pointer;
+      transition: all .15s;
+    }
+
+    .ndo-btn:hover {
+      background: var(--accent);
+      color: #0d1117;
+    }
+  </style>
+</head>
+
+<body>
+
+  <div id="topbar">
+    <div class="tb-logo">GEO<span>/</span>3D</div>
+    <div class="tb-divider"></div>
+    <div class="tb-info"><span id="tb-pts-count">0</span> puntos cargados</div>
+    <div class="tb-divider"></div>
+    <div class="tb-info" id="tb-origin-info">Sin origen definido</div>
+    <button class="tb-import" onclick="openExcelModal()">📥 Importar Excel</button>
+    <button class="tb-back" onclick="openPtsModal()" style="color:#ffc800;border-color:#3a3000;">📍 Puntos</button>
+    <button class="tb-back" onclick="openPrefsModal()" style="color:#00c8ff;border-color:#1a3a4a;">⚙
+      Preferencias</button>
+    <button class="tb-back" onclick="history.back()">← Volver</button>
+  </div>
+
+  <div id="app">
+
+    <div id="sidebar-left">
+      <div class="panel-section-header">Distancias</div>
+
+      <button class="dist-mode-btn" id="btn-dist-dos" onclick="setDistMode('dos', this)">
+        <div class="dbtn-icon">📏</div>
+        <div class="dbtn-text">
+          <span class="dbtn-label">Entre dos puntos</span>
+          <span class="dbtn-desc">Clic en punto A y B</span>
+        </div>
+      </button>
+
+      <button class="dist-mode-btn" id="btn-dist-acum" onclick="setDistMode('acum', this)">
+        <div class="dbtn-icon">📐</div>
+        <div class="dbtn-text">
+          <span class="dbtn-label">Distancia acumulada</span>
+          <span class="dbtn-desc">Clic en varios puntos</span>
+        </div>
+      </button>
+
+      <div id="dist-results">
+        <div class="dist-inactive" id="dist-inactive-msg">Activa un modo de medición para comenzar.</div>
+      </div>
+
+      <button class="dist-clear-btn" onclick="clearDist()">✕ Limpiar mediciones</button>
+
+      <div class="dist-hint" id="dist-hint" style="display:none">
+        Clic izquierdo = seleccionar punto<br>
+        Ctrl+Z = deshacer último segmento
+      </div>
+
+      <div class="section-sep"></div>
+      <div class="panel-section-header">Agregar Puntos</div>
+
+      <button class="addpt-mode-btn" id="btn-addpt-click" onclick="toggleAddPtMode('click', this)">
+        <div class="dbtn-icon">🖱️</div>
+        <div class="dbtn-text">
+          <span class="dbtn-label">Clic en terreno</span>
+          <span class="dbtn-desc">Clic izquierdo para fijar punto</span>
+        </div>
+      </button>
+
+      <button class="addpt-mode-btn" id="btn-addpt-manual" onclick="toggleAddPtMode('manual', this)">
+        <div class="dbtn-icon">✏️</div>
+        <div class="dbtn-text">
+          <span class="dbtn-label">Coordenadas manuales</span>
+          <span class="dbtn-desc">Ingresa Lat, Lng y Altura</span>
+        </div>
+      </button>
+
+      <div class="addpt-panel hidden" id="addpt-manual-panel">
+        <input class="addpt-input" id="addpt-lat" type="number" step="any" placeholder="Latitud">
+        <input class="addpt-input" id="addpt-lng" type="number" step="any" placeholder="Longitud">
+        <input class="addpt-input" id="addpt-elev" type="number" step="any" placeholder="Altura (m)">
+        <input class="addpt-input" id="addpt-label" type="text" placeholder="Etiqueta (opcional)">
+        <button class="addpt-btn" onclick="agregarPuntoManual()">+ Agregar punto</button>
+        <div class="addpt-status" id="addpt-status"></div>
+      </div>
+
+      <div class="dist-hint" id="addpt-click-hint" style="display:none">
+        Clic izquierdo sobre el terreno<br>para fijar un punto permanente
+      </div>
+
+      <div class="section-sep"></div>
+      <div class="panel-section-header">Línea sobre terreno</div>
+
+      <button class="dist-mode-btn" id="btn-linea-terreno" onclick="toggleLineaMode(this)">
+        <div class="dbtn-icon">📌</div>
+        <div class="dbtn-text">
+          <span class="dbtn-label">Trazar línea</span>
+          <span class="dbtn-desc">Clic en punto A y punto B</span>
+        </div>
+      </button>
+
+      <div class="linea-panel" id="linea-panel">
+        <div class="linea-cfg-row">
+          <span class="linea-cfg-lbl">Color</span>
+          <input type="color" id="linea-color" class="linea-cfg-color" value="#ff6600">
+        </div>
+        <div class="linea-cfg-row">
+          <span class="linea-cfg-lbl">Grosor</span>
+          <input type="range" id="linea-grosor" class="linea-cfg-range" min="1" max="12" value="2"
+            oninput="document.getElementById('linea-grosor-val').textContent=this.value">
+          <span class="linea-cfg-val" id="linea-grosor-val">2</span>
+        </div>
+        <div class="linea-pt-indicator" id="linea-pt-indicator">
+          <span id="linea-pt-a">A: —</span>
+          <span id="linea-pt-b">B: —</span>
+        </div>
+        <div class="linea-list" id="linea-list"></div>
+        <button class="linea-clear-btn" onclick="clearTodasLineas()">✕ Limpiar todas</button>
+      </div>
+
+      <div class="dist-hint" id="linea-hint" style="display:none">
+        Clic izquierdo en el terreno<br>para fijar punto A, luego B
+      </div>
+    </div>
+
+    <div id="viewport">
+      <canvas id="three-canvas"></canvas>
+
+      <div id="no-data-overlay">
+        <div class="ndo-icon">🧊</div>
+        <div class="ndo-title">Sin Datos</div>
+        <div class="ndo-msg">No se encontraron puntos desde GeoElevation.<br><br>Regresa, agrega puntos y presiona el
+          botón <b style="color:var(--accent)">🧊 Ver 3D</b>.</div>
+        <button class="ndo-btn" onclick="openExcelModal()">📥 Importar puntos Excel</button>
+      </div>
+
+      <div id="axis-hud"><canvas id="axis-canvas" width="80" height="80"></canvas></div>
+      <div id="statusbar">
+        <span id="sb-coords">X: 0.00 &nbsp; Y: 0.00 &nbsp; Z: 0.00</span>
+        <span id="sb-terrain">—</span>
+        <span id="sb-mode">MODO: Orbitar</span>
+        <span id="sb-zoom">Zoom: 100%</span>
+      </div>
+    </div>
+
+    <div id="sidebar-right">
+
+      <div class="panel-section-header">Graficar</div>
+
+      <!-- Graficar Área -->
+      <button class="graph-btn" id="btn-graficar-area" onclick="toggleGraficarArea(this)">
+        <div class="gbtn-icon">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+            <polygon points="2,18 8,6 14,12 22,4 22,20 2,20" />
+            <polyline points="2,18 8,6 14,12 22,4" stroke-width="1.4" stroke-opacity=".7" />
+          </svg>
+        </div>
+        <div class="gbtn-text">
+          <span class="gbtn-label">Graficar Área</span>
+          <span class="gbtn-desc">Malla de terreno 3D</span>
+        </div>
+      </button>
+
+      <!-- Area config sub-panel -->
+      <div id="area-config">
+        <div class="cfg-label">Color de malla</div>
+        <div class="cfg-row">
+          <select class="cfg-select" id="cfg-color-mode">
+            <option value="elevation">Por elevación (gradiente)</option>
+            <option value="solid">Sólido (cian)</option>
+            <option value="wireframe">Solo aristas</option>
+          </select>
+        </div>
+        <div class="cfg-label">Suavizado de superficie</div>
+        <div class="cfg-row">
+          <select class="cfg-select" id="cfg-smooth">
+            <option value="flat">Plano (triángulos visibles)</option>
+            <option value="smooth">Suavizado</option>
+          </select>
+        </div>
+        <div class="cfg-label">Escala vertical</div>
+        <div class="cfg-row">
+          <select class="cfg-select" id="cfg-elev-scale">
+            <option value="1" selected>×1 (real)</option>
+            <option value="2">×2</option>
+            <option value="5">×5</option>
+            <option value="10">×10</option>
+            <option value="20">×20</option>
+          </select>
+        </div>
+        <button class="cfg-apply" onclick="graficarArea()">▶ Generar malla</button>
+        <button class="cfg-clear" onclick="limpiarMalla()">✕ Limpiar malla</button>
+      </div>
+
+      <!-- Graficar Línea -->
+      <button class="graph-btn" id="btn-graficar-linea" onclick="activarGrafico('linea', this)">
+        <div class="gbtn-icon">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+            <polyline points="3 17 8 10 13 14 21 5" />
+            <circle cx="3" cy="17" r="1.5" fill="currentColor" />
+            <circle cx="21" cy="5" r="1.5" fill="currentColor" />
+          </svg>
+        </div>
+        <div class="gbtn-text">
+          <span class="gbtn-label">Graficar Línea</span>
+          <span class="gbtn-desc">Perfil longitudinal</span>
+        </div>
+      </button>
+
+      <!-- Graficar Línea 3D -->
+      <button class="graph-btn" id="btn-graficar-linea3d" onclick="activarGrafico('linea3d', this)">
+        <div class="gbtn-icon">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+            <path d="M3 20 L8 8 L14 13 L20 4" />
+            <path d="M20 4 L16 4 M20 4 L20 8" stroke-width="1.4" />
+            <path d="M3 20 L7 20 M3 20 L3 16" stroke-width="1.4" />
+          </svg>
+        </div>
+        <div class="gbtn-text">
+          <span class="gbtn-label">Graficar Línea 3D</span>
+          <span class="gbtn-desc">Trayecto en el espacio</span>
+        </div>
+      </button>
+
+      <div class="section-sep"></div>
+
+      <div class="panel-section-header">Línea seleccionada</div>
+      <div id="linea-info-panel">
+        <div class="linea-info-empty">Haz clic en una tubería<br>para ver sus propiedades.</div>
+      </div>
+
+      <div class="section-sep"></div>
+
+      <div class="options-area">
+        <label class="opt-row"><input type="checkbox" id="chk-grilla" checked> Mostrar grilla</label>
+        <label class="opt-row"><input type="checkbox" id="chk-puntos" checked> Mostrar puntos</label>
+        <label class="opt-row"><input type="checkbox" id="chk-wireframe" checked> Mostrar perímetro triángulos</label>
+      </div>
+      <div class="hint-row">
+        Clic derecho = orbitar<br>
+        Rueda = zoom<br>
+        Botón central = paneo
+      </div>
+
+    </div>
+
+  </div>
+
+  <!-- ═══ MODAL EDITAR PUNTO ═══ -->
+  <div id="editpt-modal">
+    <div class="editpt-box">
+      <div class="editpt-header">
+        <div class="editpt-title">✏ Editar punto</div>
+        <button class="excel-close" onclick="closeEditPtModal()">✕</button>
+      </div>
+      <div class="editpt-body">
+        <div class="editpt-row">
+          <div class="editpt-lbl">Etiqueta</div>
+          <input class="editpt-input" id="editpt-label" type="text" placeholder="Nombre del punto">
+        </div>
+        <div class="editpt-row">
+          <div class="editpt-lbl">Color</div>
+          <div class="editpt-color-row">
+            <input type="color" id="editpt-color" value="#ff4488">
+            <span style="font-family:var(--font-mono);font-size:10px;color:var(--text-muted)">Color de esfera y borde de
+              etiqueta</span>
+          </div>
+        </div>
+      </div>
+      <div class="editpt-footer">
+        <button class="excel-btn-cancel" onclick="closeEditPtModal()">Cancelar</button>
+        <button class="excel-btn-ok" onclick="applyEditPt()">✔ Guardar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ MODAL PREFERENCIAS ═══ -->
+  <div id="prefs-modal">
+    <div class="prefs-box">
+      <div class="prefs-header">
+        <div class="prefs-title">⚙ Preferencias de diseño</div>
+        <button class="excel-close" onclick="closePrefsModal()">✕</button>
+      </div>
+      <div class="prefs-body">
+
+        <div class="prefs-group">
+          <div class="prefs-group-title">Puntos fijos (clic / manual)</div>
+          <div class="prefs-row">
+            <div class="prefs-lbl">
+              Tamaño de esfera
+              <small>Factor × tamaño del terreno</small>
+            </div>
+            <input class="prefs-input" id="pref-pt-radius" type="number" step="0.001" min="0.001" value="0.015">
+          </div>
+          <div class="prefs-row">
+            <div class="prefs-lbl">
+              Tamaño de etiqueta
+              <small>Factor × tamaño del terreno</small>
+            </div>
+            <input class="prefs-input" id="pref-pt-label" type="number" step="0.01" min="0.01" value="0.15">
+          </div>
+        </div>
+
+        <div class="prefs-group">
+          <div class="prefs-group-title">Marcadores de distancia</div>
+          <div class="prefs-row">
+            <div class="prefs-lbl">
+              Tamaño de marcador
+              <small>Radio fijo en unidades 3D</small>
+            </div>
+            <input class="prefs-input" id="pref-dist-marker" type="number" step="0.01" min="0.01" value="0.18">
+          </div>
+        </div>
+
+      </div>
+      <div class="prefs-footer">
+        <button class="excel-btn-cancel" onclick="closePrefsModal()">Cerrar</button>
+        <button class="excel-btn-ok" onclick="applyPrefs()">✔ Aplicar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ MODAL IMPORTAR EXCEL ═══ -->
+  <div id="excel-modal">
+    <div class="excel-box">
+      <div class="excel-header">
+        <div class="excel-title">📥 Importar puntos desde Excel</div>
+        <button class="excel-close" onclick="closeExcelModal()">✕</button>
+      </div>
+      <div class="excel-body">
+        <div class="excel-drop" id="excel-drop">
+          <div class="excel-drop-icon">📂</div>
+          <div class="excel-drop-txt">Arrastra tu archivo aquí o haz clic para seleccionar</div>
+          <div class="excel-drop-sub">Formatos soportados: .xlsx, .xls, .csv</div>
+          <input type="file" id="excel-file-input" accept=".xlsx,.xls,.csv" onchange="handleExcelFile(this.files[0])">
+        </div>
+
+        <div class="excel-col-map" id="excel-col-map">
+          <div class="col-map-title">Mapeo de columnas</div>
+          <div class="col-map-grid">
+            <div class="col-map-row">
+              <div class="col-map-lbl">Etiqueta / Nombre</div>
+              <select class="col-map-sel" id="map-label"></select>
+            </div>
+            <div class="col-map-row">
+              <div class="col-map-lbl">Elevación (m) <span>*</span></div>
+              <select class="col-map-sel" id="map-elev"></select>
+            </div>
+            <div class="col-map-row">
+              <div class="col-map-lbl">Latitud</div>
+              <select class="col-map-sel" id="map-lat"></select>
+            </div>
+            <div class="col-map-row">
+              <div class="col-map-lbl">Longitud</div>
+              <select class="col-map-sel" id="map-lng"></select>
+            </div>
+            <div class="col-map-row">
+              <div class="col-map-lbl">X (coord. local)</div>
+              <select class="col-map-sel" id="map-x"></select>
+            </div>
+            <div class="col-map-row">
+              <div class="col-map-lbl">Y (coord. local)</div>
+              <select class="col-map-sel" id="map-y"></select>
+            </div>
+          </div>
+          <div class="col-map-row" style="margin-top:4px;">
+            <div class="col-map-lbl">Tipo de punto</div>
+            <select class="col-map-sel" id="map-type"></select>
+          </div>
+        </div>
+
+        <div class="excel-preview" id="excel-preview"></div>
+        <div class="excel-status" id="excel-status"></div>
+      </div>
+      <div class="excel-footer">
+        <button class="excel-btn-cancel" onclick="closeExcelModal()">Cancelar</button>
+        <button class="excel-btn-ok" id="excel-btn-ok" disabled onclick="importarPuntosExcel()">▶ Importar
+          puntos</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ MODAL PUNTOS ═══ -->
+  <div id="pts-modal">
+    <div class="pts-modal-box">
+      <div class="pts-modal-header">
+        <div class="pts-modal-title">📍 Puntos cargados — <span id="pts-modal-count">0</span></div>
+        <button class="excel-close" onclick="closePtsModal()">✕</button>
+      </div>
+      <div class="pts-modal-body">
+        <div class="pts-list" id="pts-list">
+          <div class="pts-empty" id="pts-empty">Sin puntos cargados.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+
+  <script>
+    // ═══════════════════════════════════════════════════════
+    //  DATOS — solo vía importación Excel
+    // ═══════════════════════════════════════════════════════
+    let geoPoints = [];
+    let geoOrigin = null;
+
+    function openPtsModal() {
+      renderPointsList();
+      document.getElementById('pts-modal-count').textContent = geoPoints.length;
+      document.getElementById('pts-modal').classList.add('show');
+    }
+
+    function closePtsModal() {
+      document.getElementById('pts-modal').classList.remove('show');
+    }
+
+    function renderPointsList() {
+      const list = document.getElementById('pts-list');
+      list.innerHTML = '';
+      document.getElementById('pts-modal-count').textContent = geoPoints.length;
+      document.getElementById('tb-pts-count').textContent = geoPoints.length;
+
+      if (geoPoints.length === 0) {
+        list.innerHTML =
+          '<div class="pts-empty" id="pts-empty">Sin puntos cargados.</div>';
+        return;
+      }
+
+      geoPoints.forEach(p => {
+        const el = document.createElement('div');
+        el.className = 'pts-item';
+
+        const elevStr =
+          (p.elev !== null && p.elev !== undefined)
+            ? p.elev.toFixed(1) + 'm'
+            : '—';
+
+        el.innerHTML =
+          '<div class="pts-dot type-' + p.type + '"></div>' +
+          '<span class="pts-label">' + p.label + '</span>' +
+          '<span class="pts-elev">' + elevStr + '</span>';
+
+        list.appendChild(el);
+      });
+    }
+
+    // ═══════════════════════════════════════════════════════
+    //  COORDINATE HELPERS
+    // ═══════════════════════════════════════════════════════
+
+    // Convierte un punto geo a coordenadas 3D escaladas
+    // Retorna { x, y (elevacion), z } listas para Three.js
+    function toScene(pts, elevScale) {
+      // Usar X/Y cartesianos si existen, si no convertir desde lat/lng
+      const pts3 = pts.map(p => {
+        let px = p.x, py = p.y;
+        if (px === null || px === undefined || py === null || py === undefined) {
+          const lat0 = geoOrigin ? geoOrigin.lat : p.lat;
+          const lng0 = geoOrigin ? geoOrigin.lng : p.lng;
+          px = (p.lng - lng0) * 111320 * Math.cos(lat0 * Math.PI / 180);
+          py = (p.lat - lat0) * 111320;
+        }
+        const elev = (p.elev !== null && p.elev !== undefined) ? p.elev : 0;
+        return { x: px, y: elev, z: -py, label: p.label, type: p.type, raw: p };
+      });
+
+      // Centrar en origen
+      const cx = pts3.reduce((s, p) => s + p.x, 0) / pts3.length;
+      const cz = pts3.reduce((s, p) => s + p.z, 0) / pts3.length;
+      const cy = pts3.reduce((s, p) => s + p.y, 0) / pts3.length;
+
+      return pts3.map(p => ({
+        sx: (p.x - cx),
+        sy: (p.y - cy) * elevScale,
+        sz: (p.z - cz),
+        label: p.label, type: p.type, raw: p.raw,
+        horizScale: 1, cy, elevScale
+      }));
+    }
+
+    // ═══════════════════════════════════════════════════════
+    //  THREE.JS SETUP
+    // ═══════════════════════════════════════════════════════
+    let scene, camera, renderer;
+    let gridHelperMesh, bigGridMesh;
+    let pointMeshes = [];
+    let mallaMesh = null; // malla de área
+    let mallaWire = null;
+
+    (function initThree() {
+      const canvas = document.getElementById('three-canvas');
+      const viewport = document.getElementById('viewport');
+
+      renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+      renderer.setPixelRatio(window.devicePixelRatio);
+      renderer.setClearColor(0x0a1520, 1);
+
+      scene = new THREE.Scene();
+
+      camera = new THREE.PerspectiveCamera(45, 1, 0.01, 100000);
+      camera.position.set(12, 10, 16);
+      camera.lookAt(0, 0, 0);
+
+      // Luces
+      scene.add(new THREE.AmbientLight(0x203050, 1.0));
+      const dir = new THREE.DirectionalLight(0xffffff, 0.6);
+      dir.position.set(10, 20, 10);
+      scene.add(dir);
+      const dir2 = new THREE.DirectionalLight(0x0044aa, 0.3);
+      dir2.position.set(-10, -5, -10);
+      scene.add(dir2);
+
+      // Grilla
+      gridHelperMesh = new THREE.GridHelper(2000, 200, 0x1e3048, 0x132030);
+      gridHelperMesh.material.opacity = 0.7;
+      gridHelperMesh.material.transparent = true;
+      scene.add(gridHelperMesh);
+
+      bigGridMesh = new THREE.GridHelper(2000, 20, 0x1a4060, 0x1a4060);
+      bigGridMesh.material.opacity = 0.4;
+      bigGridMesh.material.transparent = true;
+      bigGridMesh.position.y = 0.001;
+      scene.add(bigGridMesh);
+
+      // Dibujar puntos iniciales
+      redrawPoints();
+
+      // Checkboxes
+      document.getElementById('chk-grilla').addEventListener('change', e => {
+        gridHelperMesh.visible = e.target.checked;
+        bigGridMesh.visible = e.target.checked;
+      });
+      document.getElementById('chk-puntos').addEventListener('change', e => {
+        pointMeshes.forEach(m => { m.visible = e.target.checked; });
+      });
+      document.getElementById('chk-wireframe').addEventListener('change', e => {
+        if (mallaWire) mallaWire.visible = e.target.checked;
+      });
+
+      // ── Orbit Controls ──
+      let state = { rotating: false, panning: false };
+      let prev = { x: 0, y: 0 };
+      window._spherical = { r: 35, phi: Math.PI / 4, theta: Math.PI / 5 };
+      window._target = new THREE.Vector3(0, 0, 0);
+
+      window.updateCamera = function () {
+        const s = window._spherical, t = window._target;
+        camera.position.set(
+          t.x + s.r * Math.sin(s.phi) * Math.sin(s.theta),
+          t.y + s.r * Math.cos(s.phi),
+          t.z + s.r * Math.sin(s.phi) * Math.cos(s.theta)
+        );
+        if (camera.position.y < 0.05) {
+          camera.position.y = 0.05;
+          s.phi = Math.acos((camera.position.y - t.y) / s.r);
+        }
+        camera.lookAt(t);
+      };
+      updateCamera();
+
+      canvas.addEventListener('mousedown', e => {
+        if (e.button === 2) state.rotating = true;
+        if (e.button === 1) { state.panning = true; e.preventDefault(); }
+        prev.x = e.clientX; prev.y = e.clientY;
+      });
+      window.addEventListener('mouseup', e => {
+        if (e.button === 2) state.rotating = false;
+        if (e.button === 1) state.panning = false;
+      });
+      const raycaster = new THREE.Raycaster();
+      const mouseNDC = new THREE.Vector2();
+
+      window.addEventListener('mousemove', e => {
+        const dx = e.clientX - prev.x, dy = e.clientY - prev.y;
+        prev.x = e.clientX; prev.y = e.clientY;
+        const s = window._spherical, t = window._target;
+        if (state.rotating) {
+          s.theta -= dx * 0.007;
+          s.phi = Math.max(0.05, Math.min(Math.PI - 0.05, s.phi - dy * 0.007));
+          updateCamera();
+          document.getElementById('sb-mode').textContent = 'MODO: Orbitar';
+        }
+        if (state.panning) {
+          const right = new THREE.Vector3().crossVectors(
+            camera.position.clone().sub(t), new THREE.Vector3(0, 1, 0)
+          ).normalize();
+          const spd = window._terrainSize ? window._terrainSize * 0.0008 : 0.025;
+          t.addScaledVector(right, dx * spd);
+          t.y += dy * spd;
+          updateCamera();
+          document.getElementById('sb-mode').textContent = 'MODO: Paneo';
+        }
+        document.getElementById('sb-coords').textContent =
+          'X: ' + t.x.toFixed(2) + '  Y: ' + t.z.toFixed(2) + '  Elev: ' + t.y.toFixed(2);
+
+        // Raycast sobre la malla del terreno
+        if (mallaMesh) {
+          const rect = canvas.getBoundingClientRect();
+          mouseNDC.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+          mouseNDC.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+          raycaster.setFromCamera(mouseNDC, camera);
+          const hits = raycaster.intersectObject(mallaMesh);
+          if (hits.length > 0) {
+            const hit = hits[0].point;
+            // Revertir escala de escena a metros reales
+            const hs = hits[0].object.userData.horizScale || 1;
+            const cy = hits[0].object.userData.cy || 0;
+            const es = hits[0].object.userData.elevScale || 1;
+            const xm = hs > 0 ? hit.x / hs : hit.x;
+            const zm = hs > 0 ? -hit.z / hs : -hit.z;
+            const elev = hs > 0 && es > 0 ? hit.y / (hs * es) + cy : hit.y;
+            // Revertir a lat/lng si hay origen
+            let geoTxt = '';
+            if (geoOrigin) {
+              const lat0 = geoOrigin.lat, lng0 = geoOrigin.lng;
+              const lat = lat0 + zm / 111320;
+              const lng = lng0 + xm / (111320 * Math.cos(lat0 * Math.PI / 180));
+              geoTxt = '  Lat: ' + lat.toFixed(6) + '  Lng: ' + lng.toFixed(6);
+            }
+            document.getElementById('sb-terrain').textContent =
+              '▲ X: ' + xm.toFixed(2) + 'm  Z: ' + zm.toFixed(2) + 'm  H: ' + elev.toFixed(2) + 'm' + geoTxt;
+          } else {
+            document.getElementById('sb-terrain').textContent = '—';
+          }
+        }
+      });
+      canvas.addEventListener('wheel', e => {
+        e.preventDefault();
+        const s = window._spherical;
+        const maxZoom = window._terrainSize ? window._terrainSize * 3 : 5000;
+        s.r = Math.max(0.5, Math.min(maxZoom, s.r * (1 + e.deltaY * 0.001)));
+        updateCamera();
+        document.getElementById('sb-zoom').textContent = 'Zoom: ' + Math.round(22 / s.r * 100) + '%';
+      }, { passive: false });
+      canvas.addEventListener('contextmenu', e => e.preventDefault());
+
+      // Resize
+      function resize() {
+        const w = viewport.clientWidth, h = viewport.clientHeight;
+        renderer.setSize(w, h);
+        camera.aspect = w / h;
+        camera.updateProjectionMatrix();
+      }
+      window.addEventListener('resize', resize);
+      resize();
+
+      // Axis HUD
+      const axisCanvas = document.getElementById('axis-canvas');
+      const axisCtx = axisCanvas.getContext('2d');
+      const AX = 80, cx2 = 40, cy2 = 40, axLen = 28;
+      const AXIS_COLORS = { x: '#ff4466', y: '#44ff88', z: '#44aaff' };
+
+      function drawAxisHud() {
+        axisCtx.clearRect(0, 0, AX, AX);
+        axisCtx.beginPath(); axisCtx.arc(cx2, cy2, 38, 0, Math.PI * 2);
+        axisCtx.fillStyle = 'rgba(10,20,32,0.75)'; axisCtx.fill();
+        axisCtx.strokeStyle = '#1e3048'; axisCtx.lineWidth = 1; axisCtx.stroke();
+        const mat = new THREE.Matrix4().extractRotation(camera.matrixWorldInverse);
+        function proj(v) { const c = v.clone().applyMatrix4(mat); return { x: c.x * axLen, y: -c.y * axLen }; }
+        function arrow(dir, color, lbl) {
+          const tx = cx2 + dir.x, ty = cy2 + dir.y;
+          axisCtx.beginPath(); axisCtx.moveTo(cx2, cy2); axisCtx.lineTo(tx, ty);
+          axisCtx.strokeStyle = color; axisCtx.lineWidth = 2; axisCtx.stroke();
+          axisCtx.beginPath(); axisCtx.arc(tx, ty, 4, 0, Math.PI * 2);
+          axisCtx.fillStyle = color; axisCtx.fill();
+          axisCtx.fillStyle = color; axisCtx.font = 'bold 10px "Share Tech Mono",monospace';
+          axisCtx.textAlign = 'center'; axisCtx.textBaseline = 'middle';
+          axisCtx.fillText(lbl, tx + dir.x * 0.45, ty + dir.y * 0.45);
+        }
+        [
+          { dir: proj(new THREE.Vector3(1, 0, 0)), color: AXIS_COLORS.x, label: 'X', d: proj(new THREE.Vector3(1, 0, 0)).x },
+          { dir: proj(new THREE.Vector3(0, 1, 0)), color: AXIS_COLORS.y, label: 'Y', d: proj(new THREE.Vector3(0, 1, 0)).x },
+          { dir: proj(new THREE.Vector3(0, 0, 1)), color: AXIS_COLORS.z, label: 'Z', d: proj(new THREE.Vector3(0, 0, 1)).x },
+        ].sort((a, b) => a.d - b.d).forEach(a => arrow(a.dir, a.color, a.label));
+      }
+
+      function animate() {
+        requestAnimationFrame(animate);
+        renderer.render(scene, camera);
+        drawAxisHud();
+      }
+      animate();
+    })();
+
+    // ═══════════════════════════════════════════════════════
+    //  DRAW POINTS (esferas pequeñas)
+    // ═══════════════════════════════════════════════════════
+    function redrawPoints() {
+      pointMeshes.forEach(m => scene.remove(m));
+      pointMeshes = [];
+      if (geoPoints.length === 0) return;
+
+      const elevScale = parseFloat(document.getElementById('cfg-elev-scale').value) || 1;
+      const pts = toScene(geoPoints, elevScale);
+      const colors = { A: 0xff6b35, L: 0x7c6cff, P: 0x3dffc0 };
+
+      pts.forEach(p => {
+        const geo = new THREE.SphereGeometry(0.12, 6, 6);
+        const mat = new THREE.MeshPhongMaterial({ color: colors[p.type] || 0x3dffc0, emissive: colors[p.type] || 0x3dffc0, emissiveIntensity: 0.25 });
+        const mesh = new THREE.Mesh(geo, mat);
+        mesh.position.set(p.sx, p.sy, p.sz);
+        scene.add(mesh);
+        pointMeshes.push(mesh);
+      });
+
+      // Ajustar cámara
+      if (pts.length > 0) {
+        const xs = pts.map(p => p.sx), zs = pts.map(p => p.sz), ys = pts.map(p => p.sy);
+        const spread = Math.max(Math.max(...xs) - Math.min(...xs), Math.max(...zs) - Math.min(...zs));
+        window._spherical.r = spread * 0.8 + 10;
+        window._spherical.phi = Math.PI / 4;
+        window._spherical.theta = Math.PI / 4;
+        window._target.set(
+          (Math.max(...xs) + Math.min(...xs)) / 2,
+          (Math.max(...ys) + Math.min(...ys)) / 2,
+          (Math.max(...zs) + Math.min(...zs)) / 2
+        );
+        updateCamera();
+      }
+    }
+
+    // ═══════════════════════════════════════════════════════
+    //  GRAFICAR ÁREA — malla de terreno con Delaunay
+    // ═══════════════════════════════════════════════════════
+    function limpiarMalla() {
+      if (mallaMesh) { scene.remove(mallaMesh); mallaMesh.geometry.dispose(); mallaMesh.material.dispose(); mallaMesh = null; }
+      if (mallaWire) { scene.remove(mallaWire); mallaWire.geometry.dispose(); mallaWire.material.dispose(); mallaWire = null; }
+    }
+
+    function graficarArea() {
+      limpiarMalla();
+      document.getElementById('no-data-overlay').classList.remove('show');
+
+      if (geoPoints.length < 3) {
+        alert('Se necesitan al menos 3 puntos para generar una malla de área.');
+        return;
+      }
+
+      const elevScale = parseFloat(document.getElementById('cfg-elev-scale').value);
+      const colorMode = document.getElementById('cfg-color-mode').value;
+      const smoothMode = document.getElementById('cfg-smooth').value;
+
+      const pts = toScene(geoPoints, elevScale);
+
+      // ── Triangulación Delaunay (Bowyer-Watson simplificado) ──
+      const vertices2D = pts.map(p => [p.sx, p.sz]); // XZ plano para triangular
+      const triangles = delaunay(vertices2D);
+
+      if (triangles.length === 0) {
+        alert('No se pudo triangular el conjunto de puntos.');
+        return;
+      }
+
+      // Construir BufferGeometry
+      const posArr = [];
+      const normArr = [];
+      const colorArr = [];
+
+      // Rango de elevación para coloring
+      const elevs = pts.map(p => p.sy);
+      const minElev = Math.min(...elevs);
+      const maxElev = Math.max(...elevs);
+      const elevRange = (maxElev - minElev) || 1;
+
+      // Función de color por elevación (azul → cian → verde → amarillo → rojo)
+      function elevColor(sy) {
+        const t = (sy - minElev) / elevRange; // 0..1
+        // Paleta terreno apagada: agua profunda → verde bosque → tierra → roca → nieve
+        const stops = [
+          [0.20, 0.32, 0.45],  // azul oscuro (agua/bajo)
+          [0.25, 0.42, 0.28],  // verde bosque
+          [0.52, 0.42, 0.28],  // tierra/marrón
+          [0.55, 0.50, 0.44],  // roca gris cálido
+          [0.82, 0.80, 0.78],  // nieve/cima
+        ];
+        const i = Math.min(Math.floor(t * (stops.length - 1)), stops.length - 2);
+        const u = t * (stops.length - 1) - i;
+        const a = stops[i], b = stops[i + 1];
+        return [a[0] + (b[0] - a[0]) * u, a[1] + (b[1] - a[1]) * u, a[2] + (b[2] - a[2]) * u];
+      }
+
+      triangles.forEach(tri => {
+        const [i0, i1, i2] = tri;
+        const p0 = pts[i0], p1 = pts[i1], p2 = pts[i2];
+
+        const v0 = new THREE.Vector3(p0.sx, p0.sy, p0.sz);
+        const v1 = new THREE.Vector3(p1.sx, p1.sy, p1.sz);
+        const v2 = new THREE.Vector3(p2.sx, p2.sy, p2.sz);
+
+        // Calcular normal y corregir orden de vértices para que siempre apunte a Y+
+        const edge1 = v1.clone().sub(v0);
+        const edge2 = v2.clone().sub(v0);
+        const normal = new THREE.Vector3().crossVectors(edge1, edge2).normalize();
+
+        // Si la normal apunta hacia abajo, invertir el orden de v1 y v2
+        // para que el winding quede correcto en lugar de solo negar la normal
+        const verts = normal.y < 0
+          ? [v0, v2, v1]
+          : [v0, v1, v2];
+        const faceNormal = normal.y < 0 ? normal.negate() : normal;
+
+        verts.forEach((v, vi) => {
+          posArr.push(v.x, v.y, v.z);
+          normArr.push(faceNormal.x, faceNormal.y, faceNormal.z);
+
+          if (colorMode === 'elevation') {
+            const p = [p0, p1, p2][vi];
+            const c = elevColor(p.sy);
+            colorArr.push(c[0], c[1], c[2]);
+          } else {
+            colorArr.push(0, 0.78, 1); // cian
+          }
+        });
+      });
+
+      const geo = new THREE.BufferGeometry();
+
+      if (smoothMode === 'smooth') {
+        // Geometría indexada: vértices únicos compartidos entre triángulos
+        // Así computeVertexNormals() puede promediar normales entre caras vecinas
+        const uniqueVerts = [];
+        const uniqueColors = [];
+        const vertMap = new Map();
+        const indices = [];
+
+        triangles.forEach(tri => {
+          tri.forEach((ptIdx, vi) => {
+            const p = pts[ptIdx];
+            const key = ptIdx;
+            if (!vertMap.has(key)) {
+              vertMap.set(key, uniqueVerts.length / 3);
+              uniqueVerts.push(p.sx, p.sy, p.sz);
+              if (colorMode === 'elevation') {
+                const c = elevColor(p.sy);
+                uniqueColors.push(c[0], c[1], c[2]);
+              } else {
+                uniqueColors.push(0, 0.78, 1);
+              }
+            }
+            indices.push(vertMap.get(key));
+          });
+        });
+
+        geo.setIndex(indices);
+        geo.setAttribute('position', new THREE.Float32BufferAttribute(uniqueVerts, 3));
+        geo.setAttribute('color', new THREE.Float32BufferAttribute(uniqueColors, 3));
+        geo.computeVertexNormals(); // ahora sí funciona: promedia entre caras vecinas
+
+      } else {
+        // Geometría no-indexada con normales de cara (triángulos visibles)
+        geo.setAttribute('position', new THREE.Float32BufferAttribute(posArr, 3));
+        geo.setAttribute('color', new THREE.Float32BufferAttribute(colorArr, 3));
+        geo.setAttribute('normal', new THREE.Float32BufferAttribute(normArr, 3));
+      }
+
+      let mat;
+      if (colorMode === 'wireframe') {
+        mat = new THREE.MeshBasicMaterial({ color: 0x00c8ff, wireframe: true });
+      } else {
+        mat = new THREE.MeshBasicMaterial({
+          vertexColors: true,
+          side: THREE.DoubleSide,
+          transparent: true,
+          polygonOffset: true,
+          polygonOffsetFactor: 1,
+          polygonOffsetUnits: 1,
+        });
+      }
+
+      mallaMesh = new THREE.Mesh(geo, mat);
+      lineaObjects.forEach((obj, i) => { if (obj) reconstruirLinea(i); });
+
+      // Deseleccionar el botón "Graficar Área" y cerrar su panel
+      areaOpen = false;
+      document.getElementById('btn-graficar-area').classList.remove('active');
+      document.getElementById('area-config').classList.remove('show');
+      mallaMesh.userData.horizScale = pts.length > 0 ? pts[0].horizScale : 1;
+      mallaMesh.userData.cy = pts.length > 0 ? pts[0].cy : 0;
+      mallaMesh.userData.elevScale = pts.length > 0 ? pts[0].elevScale : 1;
+      window._horizScale = pts.length > 0 ? pts[0].horizScale : 1;
+      window._elevScale = pts.length > 0 ? pts[0].elevScale : 1;
+      window._cy = pts.length > 0 ? pts[0].cy : 0;
+      scene.add(mallaMesh);
+
+      // Wireframe overlay encima de la malla sólida
+      if (colorMode !== 'wireframe') {
+        const wireGeo = new THREE.WireframeGeometry(geo);
+        const wireMat = new THREE.LineBasicMaterial({ color: 0x00c8ff, opacity: 0.2, transparent: true });
+        mallaWire = new THREE.LineSegments(wireGeo, wireMat);
+        mallaWire.visible = document.getElementById('chk-wireframe').checked;
+        scene.add(mallaWire);
+      }
+
+      // Respetar checkbox de grilla
+      const grillaChecked = document.getElementById('chk-grilla').checked;
+      gridHelperMesh.visible = grillaChecked;
+      bigGridMesh.visible = grillaChecked;
+
+      // Ajustar tamaño de la grid al área cubierta por los puntos
+      const sxs = pts.map(p => p.sx), szs = pts.map(p => p.sz);
+      const areaW = Math.max(...sxs) - Math.min(...sxs);
+      const areaD = Math.max(...szs) - Math.min(...szs);
+      const gridSize = Math.max(areaW, areaD) * 1.3;
+      window._terrainSize = Math.max(areaW, areaD);
+      const gridDivisions = Math.min(200, Math.max(20, Math.round(gridSize / 2)));
+
+      scene.remove(gridHelperMesh);
+      scene.remove(bigGridMesh);
+      gridHelperMesh.geometry.dispose();
+      bigGridMesh.geometry.dispose();
+
+      gridHelperMesh = new THREE.GridHelper(gridSize, gridDivisions, 0x1e3048, 0x132030);
+      gridHelperMesh.material.opacity = 0.7;
+      gridHelperMesh.material.transparent = true;
+      gridHelperMesh.visible = document.getElementById('chk-grilla').checked;
+      scene.add(gridHelperMesh);
+
+      bigGridMesh = new THREE.GridHelper(gridSize, Math.max(4, Math.round(gridDivisions / 10)), 0x1a4060, 0x1a4060);
+      bigGridMesh.material.opacity = 0.4;
+      bigGridMesh.material.transparent = true;
+      bigGridMesh.position.y = 0.001;
+      bigGridMesh.visible = document.getElementById('chk-grilla').checked;
+      scene.add(bigGridMesh);
+    }
+
+    // ═══════════════════════════════════════════════════════
+    //  DELAUNAY — Bowyer-Watson
+    // ═══════════════════════════════════════════════════════
+    function delaunay(points) {
+      const n = points.length;
+      if (n < 3) return [];
+
+      // Super-triangle que contiene todos los puntos
+      let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+      points.forEach(([x, y]) => {
+        if (x < minX) minX = x; if (x > maxX) maxX = x;
+        if (y < minY) minY = y; if (y > maxY) maxY = y;
+      });
+      const dx = maxX - minX, dy = maxY - minY;
+      const delta = Math.max(dx, dy) * 2;
+      const mid = [(minX + maxX) / 2, (minY + maxY) / 2];
+
+      // Índices del super-triángulo: n, n+1, n+2
+      const superPoints = [
+        [mid[0] - 20 * delta, mid[1] - delta],
+        [mid[0], mid[1] + 20 * delta],
+        [mid[0] + 20 * delta, mid[1] - delta],
+      ];
+      const allPoints = [...points, ...superPoints];
+
+      // Triángulos actuales: arrays de 3 índices
+      let triangles = [[n, n + 1, n + 2]];
+
+      for (let i = 0; i < n; i++) {
+        const [px, py] = allPoints[i];
+        const badTriangles = [];
+        const polygon = []; // aristas del polígono hueco
+
+        // Encontrar triángulos cuyo circumcírculo contiene el punto
+        triangles.forEach(tri => {
+          if (inCircumcircle(allPoints, tri, px, py)) {
+            badTriangles.push(tri);
+          }
+        });
+
+        // Encontrar aristas del polígono (no compartidas por 2 bad triangles)
+        badTriangles.forEach(tri => {
+          const edges = [[tri[0], tri[1]], [tri[1], tri[2]], [tri[2], tri[0]]];
+          edges.forEach(edge => {
+            const shared = badTriangles.some(other => other !== tri && hasEdge(other, edge));
+            if (!shared) polygon.push(edge);
+          });
+        });
+
+        // Eliminar bad triangles
+        triangles = triangles.filter(t => !badTriangles.includes(t));
+
+        // Crear nuevos triángulos desde el polígono al punto
+        polygon.forEach(edge => {
+          triangles.push([edge[0], edge[1], i]);
+        });
+      }
+
+      // Eliminar triángulos que usen vértices del super-triángulo
+      return triangles
+        .filter(t => t[0] < n && t[1] < n && t[2] < n)
+        .map(t => {
+          // Asegurar orientación consistente (normal hacia arriba)
+          const [i0, i1, i2] = t;
+          const [ax, ay] = points[i0];
+          const [bx, by] = points[i1];
+          const [cx2, cy2] = points[i2];
+          const cross = (bx - ax) * (cy2 - ay) - (by - ay) * (cx2 - ax);
+          return cross < 0 ? [i0, i2, i1] : [i0, i1, i2];
+        });
+    }
+
+    function inCircumcircle(pts, tri, px, py) {
+      const [ax, ay] = pts[tri[0]];
+      const [bx, by] = pts[tri[1]];
+      const [cx, cy] = pts[tri[2]];
+      const D = 2 * (ax * (by - cy) + bx * (cy - ay) + cx * (ay - by));
+      if (Math.abs(D) < 1e-10) return false;
+      const ux = ((ax * ax + ay * ay) * (by - cy) + (bx * bx + by * by) * (cy - ay) + (cx * cx + cy * cy) * (ay - by)) / D;
+      const uy = ((ax * ax + ay * ay) * (cx - bx) + (bx * bx + by * by) * (ax - cx) + (cx * cx + cy * cy) * (bx - ax)) / D;
+      const r2 = (ax - ux) * (ax - ux) + (ay - uy) * (ay - uy);
+      return (px - ux) * (px - ux) + (py - uy) * (py - uy) <= r2 + 1e-8;
+    }
+
+    function hasEdge(tri, edge) {
+      const [a, b] = edge;
+      return (tri[0] === a || tri[1] === a || tri[2] === a) && (tri[0] === b || tri[1] === b || tri[2] === b);
+    }
+
+    // ═══════════════════════════════════════════════════════
+    //  IMPORTAR DESDE EXCEL
+    // ═══════════════════════════════════════════════════════
+    let excelRows = [];
+    let excelHeaders = [];
+
+    function openExcelModal() {
+      document.getElementById('excel-modal').classList.add('show');
+    }
+    function closeExcelModal() {
+      document.getElementById('excel-modal').classList.remove('show');
+      resetExcelModal();
+    }
+    function resetExcelModal() {
+      excelRows = []; excelHeaders = [];
+      document.getElementById('excel-file-input').value = '';
+      document.getElementById('excel-col-map').classList.remove('show');
+      document.getElementById('excel-preview').classList.remove('show');
+      document.getElementById('excel-preview').innerHTML = '';
+      document.getElementById('excel-btn-ok').disabled = true;
+      setExcelStatus('', '');
+    }
+
+    // Drag & drop
+    const dropEl = document.getElementById('excel-drop');
+    dropEl.addEventListener('dragover', e => { e.preventDefault(); dropEl.classList.add('drag'); });
+    dropEl.addEventListener('dragleave', () => dropEl.classList.remove('drag'));
+    dropEl.addEventListener('drop', e => {
+      e.preventDefault(); dropEl.classList.remove('drag');
+      const f = e.dataTransfer.files[0];
+      if (f) handleExcelFile(f);
+    });
+
+    function handleExcelFile(file) {
+      if (!file) return;
+      const ext = file.name.split('.').pop().toLowerCase();
+      if (!['xlsx', 'xls', 'csv'].includes(ext)) {
+        setExcelStatus('Formato no soportado. Usa .xlsx, .xls o .csv', 'err'); return;
+      }
+      const reader = new FileReader();
+      reader.onload = e => {
+        try {
+          const data = new Uint8Array(e.target.result);
+          const wb = XLSX.read(data, { type: 'array' });
+          const ws = wb.Sheets[wb.SheetNames[0]];
+          const json = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
+          if (json.length < 2) { setExcelStatus('El archivo está vacío o no tiene datos.', 'err'); return; }
+
+          // Primera fila = headers
+          excelHeaders = json[0].map((h, i) => h !== '' ? String(h) : 'Col_' + (i + 1));
+          excelRows = json.slice(1).filter(row => row.some(c => c !== ''));
+
+          populateColMapSelects();
+          renderExcelPreview();
+          document.getElementById('excel-col-map').classList.add('show');
+          document.getElementById('excel-btn-ok').disabled = false;
+          setExcelStatus('✔ Archivo cargado: ' + excelRows.length + ' filas encontradas en «' + wb.SheetNames[0] + '»', 'ok');
+        } catch (err) {
+          setExcelStatus('Error al leer el archivo: ' + err.message, 'err');
+        }
+      };
+      reader.readAsArrayBuffer(file);
+    }
+
+    function populateColMapSelects() {
+      const none = '<option value="">— no usar —</option>';
+      const opts = excelHeaders.map((h, i) => `<option value="${i}">${h}</option>`).join('');
+      const fields = ['map-label', 'map-elev', 'map-lat', 'map-lng', 'map-x', 'map-y', 'map-type'];
+      fields.forEach(id => {
+        document.getElementById(id).innerHTML = none + opts;
+      });
+      // Auto-detect common column names
+      const guess = (keys) => {
+        for (const k of keys) {
+          const idx = excelHeaders.findIndex(h => h.toLowerCase().includes(k));
+          if (idx >= 0) return String(idx);
+        }
+        return '';
+      };
+      document.getElementById('map-label').value = guess(['nombre', 'label', 'etiqueta', 'name', 'id', 'punto']);
+      document.getElementById('map-elev').value = guess(['elev', 'cota', 'z', 'altura', 'alt', 'height', 'msnm']);
+      document.getElementById('map-lat').value = guess(['lat', 'latitude']);
+      document.getElementById('map-lng').value = guess(['lng', 'lon', 'long', 'longitude']);
+      document.getElementById('map-x').value = guess([' x', '_x', 'coord_x', 'este', 'east']);
+      document.getElementById('map-y').value = guess([' y', '_y', 'coord_y', 'norte', 'north']);
+      document.getElementById('map-type').value = guess(['tipo', 'type']);
+    }
+
+    function renderExcelPreview() {
+      const preview = document.getElementById('excel-preview');
+      preview.classList.add('show');
+      const maxRows = 6;
+      let html = '<table><thead><tr>' + excelHeaders.map(h => `<th>${h}</th>`).join('') + '</tr></thead><tbody>';
+      excelRows.slice(0, maxRows).forEach(row => {
+        html += '<tr>' + excelHeaders.map((_, i) => `<td>${row[i] !== undefined ? row[i] : ''}</td>`).join('') + '</tr>';
+      });
+      if (excelRows.length > maxRows) {
+        html += `<tr><td colspan="${excelHeaders.length}" style="color:var(--text-muted);text-align:center">… ${excelRows.length - maxRows} filas más</td></tr>`;
+      }
+      html += '</tbody></table>';
+      preview.innerHTML = html;
+    }
+
+    function setExcelStatus(msg, type) {
+      const el = document.getElementById('excel-status');
+      el.textContent = msg;
+      el.className = 'excel-status' + (msg ? ' show ' + type : '');
+    }
+
+    function importarPuntosExcel() {
+      const gi = v => { const s = document.getElementById(v).value; return s !== '' ? parseInt(s) : null; };
+      const iLabel = gi('map-label'), iElev = gi('map-elev');
+      const iLat = gi('map-lat'), iLng = gi('map-lng');
+      const iX = gi('map-x'), iY = gi('map-y');
+      const iType = gi('map-type');
+
+      if (iElev === null) { setExcelStatus('Debes asignar al menos la columna de Elevación.', 'err'); return; }
+      const hasGeo = iLat !== null && iLng !== null;
+      const hasXY = iX !== null && iY !== null;
+      if (!hasGeo && !hasXY) { setExcelStatus('Asigna columnas de Lat/Lng o de X/Y para posicionar los puntos.', 'err'); return; }
+
+      const nuevos = [];
+      let idx = geoPoints.length;
+      excelRows.forEach((row, ri) => {
+        const elev = parseFloat(row[iElev]);
+        if (isNaN(elev)) return; // saltar filas sin elevación
+
+        const label = iLabel !== null && row[iLabel] !== '' ? String(row[iLabel]) : 'P' + (idx + 1);
+        const lat = iLat !== null ? parseFloat(row[iLat]) : null;
+        const lng = iLng !== null ? parseFloat(row[iLng]) : null;
+        const x = iX !== null ? parseFloat(row[iX]) : null;
+        const y = iY !== null ? parseFloat(row[iY]) : null;
+        const typeRaw = iType !== null ? String(row[iType]).trim().toUpperCase() : '';
+        const type = ['A', 'L', 'P'].includes(typeRaw) ? typeRaw : 'P';
+
+        nuevos.push({ label, elev, lat, lng, x, y, type });
+        idx++;
+      });
+
+      if (nuevos.length === 0) { setExcelStatus('No se encontraron filas válidas con elevación numérica.', 'err'); return; }
+
+      // Si no hay origen y los nuevos tienen lat/lng, establecer el primero como origen
+      if (!geoOrigin) {
+        const first = nuevos.find(p => p.lat !== null && p.lng !== null && !isNaN(p.lat));
+        if (first) {
+          geoOrigin = { lat: first.lat, lng: first.lng };
+          document.getElementById('tb-origin-info').textContent =
+            'Origen: ' + geoOrigin.lat.toFixed(5) + ', ' + geoOrigin.lng.toFixed(5);
+        }
+      }
+
+      // Append
+      geoPoints = geoPoints.concat(nuevos);
+      document.getElementById('tb-pts-count').textContent = geoPoints.length;
+
+      // Reconstruir lista lateral
+      renderPointsList();
+
+      // Redibujar puntos 3D
+      redrawPoints();
+
+      // Ocultar overlay "sin datos" si estaba
+      document.getElementById('no-data-overlay').classList.remove('show');
+
+      setExcelStatus('✔ ' + nuevos.length + ' puntos importados correctamente.', 'ok');
+      closeExcelModal();
+    }
+
+    // ═══════════════════════════════════════════════════════
+    //  MEDICIÓN DE DISTANCIAS
+    // ═══════════════════════════════════════════════════════
+    let distMode = null; // 'dos' | 'acum' | null
+    let distPickedPoints = []; // puntos 3D seleccionados
+    let distLines = []; // THREE.Line objetos en escena
+    let distSegments = []; // { from, to, dist } para acumulada
+    let distMarkerPositions = []; // posiciones de marcadores para recrear
+
+    const distRaycaster = new THREE.Raycaster();
+    distRaycaster.params.Points = { threshold: 0.5 };
+    const distMouse = new THREE.Vector2();
+
+    function setDistMode(mode, btn) {
+      if (distMode === mode) {
+        distMode = null;
+        document.querySelectorAll('.dist-mode-btn').forEach(b => b.classList.remove('active'));
+        document.getElementById('dist-hint').style.display = 'none';
+        return;
+      }
+      if (addPtMode !== null) {
+        addPtMode = null;
+        document.querySelectorAll('.addpt-mode-btn').forEach(b => b.classList.remove('active'));
+        document.getElementById('addpt-manual-panel').classList.add('hidden');
+        document.getElementById('addpt-click-hint').style.display = 'none';
+      }
+      if (lineaMode) {
+        lineaMode = false;
+        document.getElementById('btn-linea-terreno').classList.remove('active');
+        document.getElementById('linea-panel').classList.remove('visible');
+        document.getElementById('linea-hint').style.display = 'none';
+        lineaPtsPicked = [];
+        updateLineaIndicators();
+      }
+      // Si cambiamos de modo de distancia, limpiar mediciones anteriores
+      if (distMode !== null && distMode !== mode) clearDist();
+      distMode = mode;
+      document.querySelectorAll('.dist-mode-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      document.getElementById('dist-hint').style.display = 'block';
+      renderDistResults();
+    }
+
+    function clearDist() {
+      distPickedPoints = [];
+      distSegments = [];
+      distMarkerPositions = [];
+      distLines.forEach(l => { scene.remove(l); l.geometry.dispose(); l.material.dispose(); });
+      distLines = [];
+      renderDistResults();
+    }
+
+    function undoLastDist() {
+      if (distMode !== 'acum' || distSegments.length === 0) return;
+      // Quitar último segmento
+      distSegments.pop();
+      distPickedPoints.pop();
+      // Quitar última línea y marcador
+      const last = distLines.pop();
+      if (last) { scene.remove(last); last.geometry.dispose(); last.material.dispose(); }
+      const marker = distLines.pop();
+      if (marker) { scene.remove(marker); marker.geometry.dispose(); marker.material.dispose(); }
+      renderDistResults();
+    }
+
+    function addDistMarker(pos, skipSave) {
+      if (!skipSave) distMarkerPositions.push(pos.clone());
+      const geo = new THREE.SphereGeometry(prefs.distMarker, 8, 8);
+      const mat = new THREE.MeshBasicMaterial({ color: 0xffc800 });
+      const mesh = new THREE.Mesh(geo, mat);
+      mesh.position.copy(pos);
+      scene.add(mesh);
+      distLines.push(mesh);
+    }
+
+    function addDistLine(a, b) {
+      const geo = new THREE.BufferGeometry().setFromPoints([a, b]);
+      const mat = new THREE.LineBasicMaterial({ color: 0xffc800, linewidth: 2 });
+      const line = new THREE.Line(geo, mat);
+      scene.add(line);
+      distLines.push(line);
+    }
+
+    function dist3D(a, b) {
+      // distancia en metros reales (revertir escala de escena)
+      const hs = window._horizScale || 1;
+      const es = window._elevScale || 1;
+      const dx = (a.x - b.x) / hs;
+      const dy = (a.y - b.y) / (hs * es);
+      const dz = (a.z - b.z) / hs;
+      return Math.sqrt(dx * dx + dy * dy + dz * dz);
+    }
+
+    function renderDistResults() {
+      const container = document.getElementById('dist-results');
+      if (!distMode || (distSegments.length === 0 && distPickedPoints.length === 0)) {
+        container.innerHTML = '<div class="dist-inactive" id="dist-inactive-msg">' +
+          (distMode ? 'Haz clic en el terreno para seleccionar puntos.' : 'Activa un modo de medición para comenzar.') +
+          '</div>';
+        return;
+      }
+      let html = '';
+      if (distMode === 'dos' && distSegments.length > 0) {
+        distSegments.forEach((seg, i) => {
+          html += '<div class="dist-item">Medición ' + (i + 1) + ' <span>' + seg.dist.toFixed(2) + ' m</span></div>';
+        });
+      } else if (distMode === 'acum') {
+        distSegments.forEach((seg, i) => {
+          html += '<div class="dist-item">Seg ' + (i + 1) + ' <span>' + seg.dist.toFixed(2) + ' m</span></div>';
+        });
+        if (distSegments.length > 1) {
+          const total = distSegments.reduce((s, seg) => s + seg.dist, 0);
+          html += '<div class="dist-total">Total: ' + total.toFixed(2) + ' m</div>';
+        }
+        if (distPickedPoints.length > 0 && distSegments.length === 0) {
+          html += '<div class="dist-inactive">Punto A seleccionado.<br>Haz clic en el siguiente punto.</div>';
+        }
+      }
+      container.innerHTML = html || '<div class="dist-inactive">Haz clic en el terreno para seleccionar puntos.</div>';
+    }
+
+    // Ctrl+Z para deshacer
+    document.addEventListener('keydown', e => {
+      if (e.ctrlKey && e.key === 'z') { e.preventDefault(); undoLastDist(); }
+    });
+
+    // Clic unificado en el canvas para distancias y agregar puntos
+    document.getElementById('three-canvas').addEventListener('click', e => {
+      if (e.button !== 0) return;
+      const canvasEl = document.getElementById('three-canvas');
+      const rect = canvasEl.getBoundingClientRect();
+      const mx = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+      const my = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+      const rc = new THREE.Raycaster();
+      rc.setFromCamera(new THREE.Vector2(mx, my), camera);
+
+      // — Modo distancia —
+      if (distMode && mallaMesh) {
+        const hits = rc.intersectObject(mallaMesh);
+        if (hits.length === 0) return;
+        const pt = hits[0].point.clone();
+
+        if (distMode === 'dos') {
+          if (distPickedPoints.length === 0) {
+            distPickedPoints.push(pt);
+            addDistMarker(pt);
+            renderDistResults();
+          } else if (distPickedPoints.length === 1) {
+            distPickedPoints.push(pt);
+            addDistMarker(pt);
+            addDistLine(distPickedPoints[0], distPickedPoints[1]);
+            const d = dist3D(distPickedPoints[0], distPickedPoints[1]);
+            distSegments.push({ from: distPickedPoints[0], to: distPickedPoints[1], dist: d });
+            renderDistResults();
+            distPickedPoints = [];
+          }
+        } else if (distMode === 'acum') {
+          if (distPickedPoints.length > 0) {
+            const prev = distPickedPoints[distPickedPoints.length - 1];
+            addDistLine(prev, pt);
+            const d = dist3D(prev, pt);
+            distSegments.push({ from: prev, to: pt, dist: d });
+          }
+          distPickedPoints.push(pt);
+          addDistMarker(pt);
+          renderDistResults();
+        }
+        return;
+      }
+
+      // — Selección de tubería para ver info —
+      if (!lineaMode && !distMode && !addPtMode && lineaObjects.some(Boolean)) {
+        const tubos = lineaObjects.filter(Boolean).map(obj => obj.meshes[0]);
+        const hits = rc.intersectObjects(tubos);
+        if (hits.length > 0) {
+          const tuboMesh = hits[0].object;
+          const idx = lineaObjects.findIndex(obj => obj && obj.meshes[0] === tuboMesh);
+          if (idx !== -1) {
+            mostrarInfoLinea(idx);
+            return;
+          }
+        } else {
+          ocultarInfoLinea();
+        }
+      }
+
+      // — Modo línea sobre terreno —
+      if (lineaMode) {
+        // Solo se puede seleccionar esferas de puntos fijos (pares 0,2,4... de addedPtMeshes)
+        const spheres = addedPtMeshes.filter((_, i) => i % 2 === 0);
+        if (spheres.length === 0) return;
+        const hits = rc.intersectObjects(spheres);
+        if (hits.length === 0) return;
+        const hitMesh = hits[0].object;
+        const idx = hitMesh.userData.ptIdx;
+        if (idx === undefined) return;
+
+        // Evitar seleccionar el mismo punto dos veces
+        if (lineaPtsPicked.length === 1 && lineaPtsPicked[0].ptIdx === idx) return;
+
+        const pos3d = addedPtData[idx].pos3d.clone();
+        const label = addedPtData[idx].label;
+
+        if (lineaPtsPicked.length === 0) {
+          lineaPtsPicked.push({ pos3d, label, ptIdx: idx });
+          updateLineaIndicators();
+        } else {
+          lineaPtsPicked.push({ pos3d, label, ptIdx: idx });
+          crearLineaTerreno(lineaPtsPicked[0].pos3d, lineaPtsPicked[1].pos3d);
+          lineaPtsPicked = [];
+          updateLineaIndicators();
+        }
+        return;
+      }
+
+      // — Modo agregar punto por clic —
+      if (addPtMode === 'click' && mallaMesh) {
+        const hits = rc.intersectObject(mallaMesh);
+        if (hits.length === 0) return;
+        const pt = hits[0].point.clone();
+        const label = 'M' + (addedPtMeshes.length / 2 + 1);
+        colocarPuntoFijo(pt, label);
+      }
+    });
+
+    // ═══════════════════════════════════════════════════════
+    //  AGREGAR PUNTOS FIJOS
+    // ═══════════════════════════════════════════════════════
+    let addPtMode = null; // 'click' | 'manual' | null
+    let addedPtMeshes = [];
+    let addedPtData = []; // { pos3d, label } — datos crudos para recrear
+
+    function toggleAddPtMode(mode, btn) {
+      if (addPtMode === mode) {
+        addPtMode = null;
+        document.querySelectorAll('.addpt-mode-btn').forEach(b => b.classList.remove('active'));
+        document.getElementById('addpt-manual-panel').classList.add('hidden');
+        document.getElementById('addpt-click-hint').style.display = 'none';
+        return;
+      }
+      if (distMode !== null) {
+        distMode = null;
+        document.querySelectorAll('.dist-mode-btn').forEach(b => b.classList.remove('active'));
+        document.getElementById('dist-hint').style.display = 'none';
+      }
+      if (lineaMode) {
+        lineaMode = false;
+        document.getElementById('btn-linea-terreno').classList.remove('active');
+        document.getElementById('linea-panel').classList.remove('visible');
+        document.getElementById('linea-hint').style.display = 'none';
+        lineaPtsPicked = [];
+        updateLineaIndicators();
+      }
+      addPtMode = mode;
+      document.querySelectorAll('.addpt-mode-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      document.getElementById('addpt-manual-panel').classList.toggle('hidden', mode !== 'manual');
+      document.getElementById('addpt-click-hint').style.display = mode === 'click' ? 'block' : 'none';
+    }
+
+    function buildSpriteTexture(label, color) {
+      const c = document.createElement('canvas');
+      c.width = 256; c.height = 64;
+      const cx = c.getContext('2d');
+      cx.fillStyle = 'rgba(13,17,23,0.9)';
+      cx.fillRect(0, 0, 256, 64);
+      cx.strokeStyle = color;
+      cx.lineWidth = 2;
+      cx.strokeRect(1, 1, 254, 62);
+      cx.fillStyle = color;
+      cx.font = 'bold 22px monospace';
+      cx.textAlign = 'center';
+      cx.textBaseline = 'middle';
+      cx.fillText(label, 128, 32);
+      return c;
+    }
+
+    function colocarPuntoFijo(pos3d, label, colorHex, skipSave) {
+      colorHex = colorHex || '#ff4488';
+      if (!skipSave) addedPtData.push({ pos3d: pos3d.clone(), label, colorHex });
+
+      const terrainSize = window._terrainSize || 40;
+      const ptRadius = terrainSize * (prefs ? prefs.ptRadius : 0.015);
+      const colorInt = parseInt(colorHex.replace('#', ''), 16);
+
+      const geo = new THREE.SphereGeometry(ptRadius, 12, 12);
+      const mat = new THREE.MeshPhongMaterial({
+        color: colorInt, emissive: colorInt, emissiveIntensity: 0.4,
+      });
+      const mesh = new THREE.Mesh(geo, mat);
+      mesh.position.copy(pos3d);
+      scene.add(mesh);
+      addedPtMeshes.push(mesh);
+
+      // Sprite etiqueta
+      const spriteCanvas = buildSpriteTexture(label, colorHex);
+      const tex = new THREE.CanvasTexture(spriteCanvas);
+      const spriteMat = new THREE.SpriteMaterial({ map: tex, transparent: true, depthTest: false, depthWrite: false });
+      const sprite = new THREE.Sprite(spriteMat);
+      sprite.renderOrder = 999;
+      const spriteSize = terrainSize * (prefs ? prefs.ptLabel : 0.15);
+      sprite.position.set(pos3d.x, pos3d.y + ptRadius * 3, pos3d.z);
+      sprite.scale.set(spriteSize, spriteSize * 0.25, 1);
+      scene.add(sprite);
+      addedPtMeshes.push(sprite);
+
+      // Guardar índice para edición posterior
+      const idx = (addedPtMeshes.length / 2) - 1;
+      mesh.userData.ptIdx = idx;
+    }
+
+    let editPtIndex = null;
+
+    function openEditPtModal(idx) {
+      editPtIndex = idx;
+      const d = addedPtData[idx];
+      document.getElementById('editpt-label').value = d.label;
+      document.getElementById('editpt-color').value = d.colorHex || '#ff4488';
+      document.getElementById('editpt-modal').classList.add('show');
+    }
+
+    function closeEditPtModal() {
+      document.getElementById('editpt-modal').classList.remove('show');
+      editPtIndex = null;
+    }
+
+    function applyEditPt() {
+      if (editPtIndex === null) return;
+      const newLabel = document.getElementById('editpt-label').value.trim() || addedPtData[editPtIndex].label;
+      const newColor = document.getElementById('editpt-color').value;
+
+      // Actualizar datos
+      addedPtData[editPtIndex].label = newLabel;
+      addedPtData[editPtIndex].colorHex = newColor;
+
+      // Actualizar esfera
+      const meshIdx = editPtIndex * 2;
+      const mesh = addedPtMeshes[meshIdx];
+      const colorInt = parseInt(newColor.replace('#', ''), 16);
+      mesh.material.color.setHex(colorInt);
+      mesh.material.emissive.setHex(colorInt);
+
+      // Actualizar sprite
+      const sprite = addedPtMeshes[meshIdx + 1];
+      const newCanvas = buildSpriteTexture(newLabel, newColor);
+      sprite.material.map.dispose();
+      sprite.material.map = new THREE.CanvasTexture(newCanvas);
+      sprite.material.map.needsUpdate = true;
+
+      closeEditPtModal();
+    }
+
+    function agregarPuntoManual() {
+      const lat = parseFloat(document.getElementById('addpt-lat').value);
+      const lng = parseFloat(document.getElementById('addpt-lng').value);
+      const elev = parseFloat(document.getElementById('addpt-elev').value);
+      const label = document.getElementById('addpt-label').value.trim() || ('M' + (addedPtMeshes.length / 2 + 1));
+      const statusEl = document.getElementById('addpt-status');
+
+      if (isNaN(lat) || isNaN(lng) || isNaN(elev)) {
+        statusEl.textContent = 'Completa Lat, Lng y Altura.';
+        statusEl.className = 'addpt-status show err'; return;
+      }
+      if (!geoOrigin) {
+        statusEl.textContent = 'Sin origen definido. Importa puntos primero.';
+        statusEl.className = 'addpt-status show err'; return;
+      }
+
+      const hs = window._horizScale || 1;
+      const es = window._elevScale || 1;
+      const cy = window._cy || 0;
+      const lat0 = geoOrigin.lat, lng0 = geoOrigin.lng;
+      const xm = (lng - lng0) * 111320 * Math.cos(lat0 * Math.PI / 180);
+      const zm = (lat - lat0) * 111320;
+      const pos3d = new THREE.Vector3(xm * hs, (elev - cy) * hs * es, -zm * hs);
+
+      colocarPuntoFijo(pos3d, label);
+      statusEl.textContent = '✔ Punto agregado correctamente.';
+      statusEl.className = 'addpt-status show ok';
+      document.getElementById('addpt-lat').value = '';
+      document.getElementById('addpt-lng').value = '';
+      document.getElementById('addpt-elev').value = '';
+      document.getElementById('addpt-label').value = '';
+    }
+
+    // ═══════════════════════════════════════════════════════
+    //  PREFERENCIAS DE DISEÑO
+    // ═══════════════════════════════════════════════════════
+    const prefs = {
+      ptRadius: 0.005,
+      ptLabel: 0.05,
+      distMarker: 0.18
+    };
+
+    function openPrefsModal() {
+      document.getElementById('pref-pt-radius').value = prefs.ptRadius;
+      document.getElementById('pref-pt-label').value = prefs.ptLabel;
+      document.getElementById('pref-dist-marker').value = prefs.distMarker;
+      document.getElementById('prefs-modal').classList.add('show');
+    }
+
+    function closePrefsModal() {
+      document.getElementById('prefs-modal').classList.remove('show');
+    }
+
+    function applyPrefs() {
+      prefs.ptRadius = parseFloat(document.getElementById('pref-pt-radius').value) || 0.015;
+      prefs.ptLabel = parseFloat(document.getElementById('pref-pt-label').value) || 0.15;
+      prefs.distMarker = parseFloat(document.getElementById('pref-dist-marker').value) || 0.18;
+
+      // Recrear puntos fijos con nuevo tamaño
+      addedPtMeshes.forEach(m => { scene.remove(m); if (m.geometry) m.geometry.dispose(); if (m.material) m.material.dispose(); });
+      addedPtMeshes = [];
+      const savedData = [...addedPtData];
+      addedPtData = [];
+      savedData.forEach(d => colocarPuntoFijo(d.pos3d, d.label));
+
+      // Recrear marcadores de distancia con nuevo tamaño
+      // Guardar líneas (no marcadores) y segmentos
+      const savedSegments = [...distSegments];
+      const savedMarkers = [...distMarkerPositions];
+      distLines.forEach(l => { scene.remove(l); if (l.geometry) l.geometry.dispose(); if (l.material) l.material.dispose(); });
+      distLines = [];
+      distMarkerPositions = [];
+      distSegments = [];
+      savedMarkers.forEach(pos => addDistMarker(pos));
+      savedSegments.forEach(seg => {
+        addDistLine(seg.from, seg.to);
+        distSegments.push(seg);
+      });
+
+      closePrefsModal();
+    }
+
+    // ═══════════════════════════════════════════════════════
+    //  LÍNEA SOBRE TERRENO
+    // ═══════════════════════════════════════════════════════
+    let lineaMode = false;
+    let lineaPtsPicked = []; // Vector3 pendientes para la línea en curso
+    let lineaObjects = [];   // { meshes: [...THREE objects], data: {...} }
+
+    function toggleLineaMode(btn) {
+      lineaMode = !lineaMode;
+      btn.classList.toggle('active', lineaMode);
+      document.getElementById('linea-panel').classList.toggle('visible', lineaMode);
+      document.getElementById('linea-hint').style.display = lineaMode ? 'block' : 'none';
+      lineaPtsPicked = [];
+      updateLineaIndicators();
+      if (lineaMode) {
+        if (distMode !== null) {
+          distMode = null;
+          document.querySelectorAll('.dist-mode-btn').forEach(b => b.classList.remove('active'));
+          document.getElementById('dist-hint').style.display = 'none';
+        }
+        if (addPtMode !== null) {
+          addPtMode = null;
+          document.querySelectorAll('.addpt-mode-btn').forEach(b => b.classList.remove('active'));
+          document.getElementById('addpt-manual-panel').classList.add('hidden');
+          document.getElementById('addpt-click-hint').style.display = 'none';
+        }
+      }
+    }
+
+    function updateLineaIndicators() {
+      const a = document.getElementById('linea-pt-a');
+      const b = document.getElementById('linea-pt-b');
+      if (lineaPtsPicked.length === 0) {
+        a.textContent = 'A: —'; a.className = '';
+        b.textContent = 'B: —'; b.className = '';
+      } else if (lineaPtsPicked.length === 1) {
+        a.textContent = 'A: ✔ ' + lineaPtsPicked[0].label; a.className = 'picked';
+        b.textContent = 'B: clic en un punto…'; b.className = 'waiting';
+      }
+    }
+
+    // Genera N puntos a lo largo del segmento AB y los proyecta sobre la malla
+    function sampleLineOnTerrain(ptA, ptB, steps) {
+      if (!mallaMesh) return [ptA, ptB];
+      const raycaster = new THREE.Raycaster();
+      const result = [];
+      const OFFSET = 0.5; // pequeño offset sobre la superficie para que no haya z-fighting
+
+      for (let i = 0; i <= steps; i++) {
+        const t = i / steps;
+        const x = ptA.x + (ptB.x - ptA.x) * t;
+        const z = ptA.z + (ptB.z - ptA.z) * t;
+        // Lanzar un rayo vertical desde arriba hacia abajo
+        const highY = 99999;
+        raycaster.set(new THREE.Vector3(x, highY, z), new THREE.Vector3(0, -1, 0));
+        const hits = raycaster.intersectObject(mallaMesh);
+        if (hits.length > 0) {
+          result.push(new THREE.Vector3(x, hits[0].point.y + OFFSET, z));
+        } else {
+          // Si no intersecta (borde o hueco), interpolar Y linealmente
+          const y = ptA.y + (ptB.y - ptA.y) * t;
+          result.push(new THREE.Vector3(x, y + OFFSET, z));
+        }
+      }
+      return result;
+    }
+
+    function crearLineaTerreno(ptA, ptB) {
+      const color = document.getElementById('linea-color').value;
+      const grosor = parseInt(document.getElementById('linea-grosor').value);
+      const colorInt = parseInt(color.replace('#', ''), 16);
+
+      // Resolución adaptativa: más pasos para líneas más largas
+      const dist2d = Math.sqrt(Math.pow(ptB.x - ptA.x, 2) + Math.pow(ptB.z - ptA.z, 2));
+      const steps = Math.max(30, Math.min(300, Math.round(dist2d * 8)));
+
+      const pts = sampleLineOnTerrain(ptA, ptB, steps);
+
+      const tubeRadius = (window._terrainSize || 10) * 0.001 * grosor;
+      const curve = new THREE.CatmullRomCurve3(pts);
+      const geo = new THREE.TubeGeometry(curve, pts.length * 2, tubeRadius, 5, false);
+      const mat = new THREE.MeshPhongMaterial({
+        color: colorInt, emissive: colorInt, emissiveIntensity: 0.3, shininess: 30,
+        polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2
+      });
+      const line = new THREE.Mesh(geo, mat);
+      scene.add(line);
+
+      const idx = lineaObjects.length;
+      lineaObjects.push({
+        meshes: [line],
+        data: { ptA: ptA.clone(), ptB: ptB.clone(), color, grosor, steps }
+      });
+
+      renderLineaList();
+      return idx;
+    }
+
+    // Reconstruye una línea (llamado al cambiar suavizado)
+    function reconstruirLinea(idx) {
+      const obj = lineaObjects[idx];
+      if (!obj) return;
+      obj.meshes.forEach(m => {
+        scene.remove(m);
+        if (m.geometry) m.geometry.dispose();
+        if (m.material) m.material.dispose();
+      });
+      const { ptA, ptB, color, grosor, steps } = obj.data;
+      const colorInt = parseInt(color.replace('#', ''), 16);
+
+      const pts = sampleLineOnTerrain(ptA, ptB, steps);
+      const tubeRadius = (window._terrainSize || 10) * 0.001 * grosor;
+      const curve = new THREE.CatmullRomCurve3(pts);
+      const geo = new THREE.TubeGeometry(curve, pts.length * 2, tubeRadius, 5, false);
+      const mat = new THREE.MeshPhongMaterial({
+        color: colorInt, emissive: colorInt, emissiveIntensity: 0.3, shininess: 30,
+      });
+      const line = new THREE.Mesh(geo, mat);
+      scene.add(line);
+
+      obj.meshes = [line];
+    }
+
+    function borrarLinea(idx) {
+      const obj = lineaObjects[idx];
+      if (!obj) return;
+      obj.meshes.forEach(m => {
+        scene.remove(m);
+        if (m.geometry) m.geometry.dispose();
+        if (m.material) m.material.dispose();
+      });
+      lineaObjects[idx] = null;
+      renderLineaList();
+    }
+
+    function clearTodasLineas() {
+      lineaObjects.forEach((obj, i) => { if (obj) borrarLinea(i); });
+      lineaObjects = [];
+      renderLineaList();
+    }
+
+    function renderLineaList() {
+      const container = document.getElementById('linea-list');
+      const activas = lineaObjects.filter(Boolean);
+      if (activas.length === 0) { container.innerHTML = ''; return; }
+      container.innerHTML = lineaObjects.map((obj, i) => {
+        if (!obj) return '';
+        return `<div class="linea-item">
+          <span class="linea-item-swatch" style="background:${obj.data.color}"></span>
+          <span style="flex:1">Línea ${i + 1}</span>
+          <span style="color:var(--text-muted)">${obj.data.grosor}px</span>
+          <button class="linea-item-del" onclick="borrarLinea(${i})" title="Borrar">✕</button>
+        </div>`;
+      }).join('');
+    }
+    function calcularLongitudTubo(ptA, ptB, steps) {
+      // Reutiliza los mismos puntos muestreados del terreno para medir la longitud 3D real
+      const pts = sampleLineOnTerrain(ptA, ptB, steps);
+      let total = 0;
+      for (let i = 1; i < pts.length; i++) {
+        total += pts[i].distanceTo(pts[i - 1]);
+      }
+      // Revertir escala de escena a metros reales
+      const hs = window._horizScale || 1;
+      const es = window._elevScale || 1;
+      // La distancia horizontal ya está en unidades de escena (sin horizScale porque horizScale=1 siempre)
+      // Solo deshacer elevScale en la componente Y
+      let totalReal = 0;
+      for (let i = 1; i < pts.length; i++) {
+        const dx = pts[i].x - pts[i - 1].x;
+        const dy = (pts[i].y - pts[i - 1].y) / es;
+        const dz = pts[i].z - pts[i - 1].z;
+        totalReal += Math.sqrt(dx * dx + dy * dy + dz * dz);
+      }
+      return totalReal;
+    }
+
+    function mostrarInfoLinea(idx) {
+      const obj = lineaObjects[idx];
+      if (!obj) return;
+      const longitud = calcularLongitudTubo(obj.data.ptA, obj.data.ptB, obj.data.steps);
+      const panel = document.getElementById('linea-info-panel');
+      panel.classList.add('show');
+      panel.innerHTML = `
+        <div class="linea-info-row">
+          <div class="linea-info-lbl">Nombre</div>
+          <div class="linea-info-val">Línea ${idx + 1}</div>
+        </div>
+        <div class="linea-info-row">
+          <div class="linea-info-lbl">Color</div>
+          <div class="linea-info-val" style="display:flex;align-items:center;gap:8px;">
+            <span style="display:inline-block;width:14px;height:14px;background:${obj.data.color};border-radius:2px;"></span>
+            ${obj.data.color}
+          </div>
+        </div>
+        <div class="linea-info-row">
+          <div class="linea-info-lbl">Grosor</div>
+          <div class="linea-info-val">${obj.data.grosor}</div>
+        </div>
+        <div class="linea-info-row">
+          <div class="linea-info-lbl">Longitud real (3D)</div>
+          <div class="linea-info-val">${longitud.toFixed(2)} m</div>
+        </div>
+      `;
+    }
+
+    function ocultarInfoLinea() {
+      const panel = document.getElementById('linea-info-panel');
+      panel.classList.remove('show');
+      panel.innerHTML = '<div class="linea-info-empty">Haz clic en una tubería<br>para ver sus propiedades.</div>';
+    }
+
+    let areaOpen = false;
+
+    function toggleGraficarArea(btn) {
+      areaOpen = !areaOpen;
+      btn.classList.toggle('active', areaOpen);
+      document.getElementById('area-config').classList.toggle('show', areaOpen);
+      // Desactivar otros
+      document.getElementById('btn-graficar-linea').classList.remove('active');
+      document.getElementById('btn-graficar-linea3d').classList.remove('active');
+    }
+
+    function activarGrafico(tipo, btnEl) {
+      // Desactivar área si estaba abierto
+      areaOpen = false;
+      document.getElementById('btn-graficar-area').classList.remove('active');
+      document.getElementById('area-config').classList.remove('show');
+
+      document.querySelectorAll('.graph-btn').forEach(b => b.classList.remove('active'));
+      if (btnEl) btnEl.classList.add('active');
+      // Funcionalidades futuras
+    }
+
+    // Clic derecho para editar punto fijo
+    document.getElementById('three-canvas').addEventListener('contextmenu', e => {
+      e.preventDefault();
+      if (addedPtMeshes.length === 0) return;
+      const canvasEl = document.getElementById('three-canvas');
+      const rect = canvasEl.getBoundingClientRect();
+      const mx = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+      const my = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+      const rc = new THREE.Raycaster();
+      rc.setFromCamera(new THREE.Vector2(mx, my), camera);
+      // Solo intersectar esferas (pares en addedPtMeshes: 0,2,4...)
+      const spheres = addedPtMeshes.filter((_, i) => i % 2 === 0);
+      const hits = rc.intersectObjects(spheres);
+      if (hits.length === 0) return;
+      const hitMesh = hits[0].object;
+      const idx = hitMesh.userData.ptIdx;
+      if (idx !== undefined) openEditPtModal(idx);
+    });
+  </script>
+</body>
+
+</html>

@@ -1,0 +1,888 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GeoElevation</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@300;400;500;700&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root,[data-theme="dark"]{
+  --bg:#08090d;--surface:#10121a;--panel:#141720;--border:#1e2235;
+  --accent:#3dffc0;--accent2:#ff6b35;--accent3:#7c6cff;
+  --text:#d4ddf0;--muted:#4a5270;--danger:#ff4455;--success:#22d37a;
+  --map-bg:#0e1018;--ctx-bg:#141720;--ctx-border:#1e2235;
+  --ctx-hover:rgba(61,255,192,.08);--ctx-danger:#ff4455;
+  --mono:'Space Mono',monospace;--sans:'DM Sans',sans-serif;
+}
+[data-theme="light"]{
+  --bg:#f0f2f8;--surface:#e4e8f2;--panel:#ffffff;--border:#d0d6e8;
+  --accent:#0088aa;--accent2:#e05a1a;--accent3:#5b4de0;
+  --text:#1a1e32;--muted:#8890b0;--danger:#d93045;--success:#1aaa5a;
+  --map-bg:#e8edf5;--ctx-bg:#fff;--ctx-border:#d0d6e8;
+  --ctx-hover:rgba(0,136,170,.07);--ctx-danger:#d93045;
+}
+html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-family:var(--sans);transition:background .25s,color .25s}
+.app{display:grid;grid-template-columns:1fr 360px;grid-template-rows:52px 1fr 60px 32px;height:100vh}
+.topbar{grid-column:1/-1;display:flex;align-items:center;gap:16px;padding:0 20px;background:var(--panel);border-bottom:1px solid var(--border);position:relative;z-index:10;transition:background .25s,border-color .25s}
+.logo{font-family:var(--mono);font-size:13px;font-weight:700;letter-spacing:.12em;color:var(--accent);text-transform:uppercase;white-space:nowrap}
+.logo span{color:var(--muted)}
+.topbar-divider{width:1px;height:24px;background:var(--border)}
+.hint-text{font-size:11px;color:var(--muted);font-family:var(--mono);flex:1;letter-spacing:.04em}
+.hint-text b{color:var(--accent)}
+.mode-btns{display:flex;gap:8px;margin-left:auto;align-items:center}
+.mode-btn{font-family:var(--mono);font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;padding:6px 14px;border:1px solid var(--border);border-radius:4px;cursor:pointer;background:transparent;color:var(--muted);transition:all .18s;white-space:nowrap}
+.mode-btn:hover{border-color:var(--accent);color:var(--accent);background:rgba(61,255,192,.05)}
+.mode-btn.active{background:var(--accent);color:var(--bg);border-color:var(--accent)}
+.mode-btn.active-purple{background:var(--accent3);color:white;border-color:var(--accent3)}
+.mode-btn.danger{border-color:var(--danger);color:var(--danger)}
+.mode-btn.danger:hover{background:var(--danger);color:white}
+.theme-toggle{display:flex;align-items:center;gap:6px;padding:5px 12px;border:1px solid var(--border);border-radius:4px;cursor:pointer;background:transparent;color:var(--muted);font-family:var(--mono);font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;transition:all .18s;white-space:nowrap}
+.theme-toggle:hover{border-color:var(--text);color:var(--text)}
+.map-wrap{grid-column:1;grid-row:2;position:relative}
+#map{width:100%;height:100%}
+.map-wrap.mode-area #map,.map-wrap.mode-line #map{cursor:crosshair!important}
+.right-panel{grid-column:2;grid-row:2;background:var(--panel);border-left:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden;position:relative;transition:background .25s,border-color .25s}
+.right-panel::before{content:'';position:absolute;inset:0;background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(255,255,255,.008) 2px,rgba(255,255,255,.008) 4px);pointer-events:none}
+.panel-header{padding:14px 16px 10px;border-bottom:1px solid var(--border);display:flex;align-items:baseline;gap:10px}
+.panel-title{font-family:var(--mono);font-size:10px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--accent)}
+.badge{font-family:var(--mono);font-size:10px;background:rgba(61,255,192,.12);color:var(--accent);padding:2px 8px;border-radius:20px;margin-left:auto}
+.table-wrap{flex:1;overflow-y:auto}
+.table-wrap::-webkit-scrollbar{width:4px}
+.table-wrap::-webkit-scrollbar-track{background:transparent}
+.table-wrap::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
+table{width:100%;border-collapse:collapse;font-size:11px}
+thead th{font-family:var(--mono);font-size:9px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);padding:8px 10px;text-align:left;border-bottom:1px solid var(--border);position:sticky;top:0;background:var(--panel);transition:background .25s}
+tbody tr{border-bottom:1px solid rgba(30,34,53,.4);cursor:pointer;transition:background .1s}
+tbody tr:hover{background:rgba(61,255,192,.04)}
+tbody tr.selected{background:rgba(61,255,192,.08)}
+tbody td{padding:7px 10px;font-family:var(--mono);font-size:10px;color:var(--text)}
+td.elev{color:var(--accent);font-weight:700}
+td.loading{color:var(--muted);animation:pulse 1s infinite}
+td.type-A{color:var(--accent2)}td.type-L{color:var(--accent3)}td.type-P{color:var(--accent)}
+@keyframes pulse{0%,100%{opacity:.4}50%{opacity:1}}
+.manual-strip{grid-column:1/-1;grid-row:3;background:var(--surface);border-top:1px solid var(--border);display:flex;align-items:center;overflow:hidden;transition:background .25s,border-color .25s}
+.strip-section{display:flex;align-items:center;gap:10px;padding:0 20px;border-right:1px solid var(--border);flex:1;height:100%}
+.strip-section:last-child{border-right:none}
+.strip-label{font-family:var(--mono);font-size:9px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);white-space:nowrap}
+input[type="text"],input[type="number"]{background:var(--panel);border:1px solid var(--border);color:var(--text);font-family:var(--mono);font-size:11px;padding:6px 10px;border-radius:4px;outline:none;transition:border-color .15s,background .25s;width:100%}
+input:focus{border-color:var(--accent)}
+.input-group{display:flex;flex-direction:column;gap:3px;flex:1;min-width:0}
+.input-group label{font-family:var(--mono);font-size:8px;color:var(--muted);letter-spacing:.1em;text-transform:uppercase}
+.strip-btn{font-family:var(--mono);font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;padding:8px 16px;border:1px solid var(--accent);border-radius:4px;cursor:pointer;background:rgba(61,255,192,.08);color:var(--accent);transition:all .15s;white-space:nowrap;align-self:center}
+.strip-btn:hover{background:var(--accent);color:var(--bg)}
+.strip-btn.orange{border-color:var(--accent2);color:var(--accent2);background:rgba(255,107,53,.08)}
+.strip-btn.orange:hover{background:var(--accent2);color:white}
+.statusbar{grid-column:1/-1;grid-row:4;display:flex;align-items:center;gap:16px;padding:0 16px;background:var(--bg);border-top:1px solid var(--border);font-family:var(--mono);font-size:10px;color:var(--muted);transition:background .25s}
+.status-msg{flex:1}.status-msg b{color:var(--accent)}
+.status-actions{display:flex;gap:8px}
+.status-btn{font-family:var(--mono);font-size:9px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;padding:3px 10px;border-radius:3px;cursor:pointer;border:1px solid var(--border);background:transparent;color:var(--muted);transition:all .15s}
+.status-btn:hover{border-color:var(--text);color:var(--text)}
+.status-btn.red{border-color:var(--danger);color:var(--danger)}
+.status-btn.red:hover{background:var(--danger);color:white}
+.status-btn.blue{border-color:var(--accent3);color:var(--accent3)}
+.status-btn.blue:hover{background:var(--accent3);color:white}
+kbd{display:inline-block;background:var(--surface);border:1px solid var(--border);border-radius:3px;padding:0 4px;font-family:var(--mono);font-size:9px;color:var(--muted)}
+.modal-overlay{display:none;position:fixed;inset:0;background:rgba(8,9,13,.85);backdrop-filter:blur(6px);z-index:9999;align-items:center;justify-content:center}
+.modal-overlay.show{display:flex}
+.modal{background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:32px 36px;min-width:320px;max-width:420px;animation:modalIn .2s ease}
+@keyframes modalIn{from{opacity:0;transform:translateY(-12px)}to{opacity:1;transform:translateY(0)}}
+.modal-tag{font-family:var(--mono);font-size:9px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--accent);margin-bottom:8px}
+.modal-tag.purple{color:var(--accent3)}
+.modal h2{font-family:var(--sans);font-size:20px;font-weight:700;color:var(--text);margin-bottom:6px}
+.modal p{font-size:13px;color:var(--muted);margin-bottom:20px;line-height:1.5}
+.modal .big-input{font-family:var(--mono);font-size:32px;font-weight:700;text-align:center;background:var(--surface);border:1px solid var(--border);color:var(--accent);border-radius:6px;padding:12px;width:100%;outline:none;transition:border-color .15s}
+.modal .big-input:focus{border-color:var(--accent)}
+.modal .big-input.orange{color:var(--accent2)}
+.modal-note{font-size:11px;color:var(--muted);text-align:center;margin-top:8px;font-family:var(--mono)}
+.modal-btns{display:flex;gap:10px;margin-top:20px}
+.modal-ok{flex:1;padding:11px;border:none;border-radius:5px;background:var(--accent);color:var(--bg);font-family:var(--mono);font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;cursor:pointer;transition:opacity .15s}
+.modal-ok:hover{opacity:.85}
+.modal-ok.orange{background:var(--accent2);color:white}
+.modal-cancel{padding:11px 18px;border:1px solid var(--border);border-radius:5px;background:transparent;color:var(--muted);font-family:var(--mono);font-size:11px;cursor:pointer;transition:all .15s}
+.modal-cancel:hover{border-color:var(--text);color:var(--text)}
+.progress-bar{position:absolute;bottom:0;left:0;right:0;height:2px;background:var(--border);overflow:hidden}
+.progress-fill{height:100%;background:var(--accent);width:0%;transition:width .3s ease}
+.leaflet-container{background:var(--map-bg)!important}
+.leaflet-control-zoom a{background:var(--panel)!important;color:var(--text)!important;border-color:var(--border)!important}
+.leaflet-control-zoom a:hover{background:var(--surface)!important;color:var(--accent)!important}
+.leaflet-bar{border:1px solid var(--border)!important;box-shadow:none!important}
+#contextMenu{display:none;position:fixed;z-index:99999;background:var(--ctx-bg);border:1px solid var(--ctx-border);border-radius:6px;box-shadow:0 8px 24px rgba(0,0,0,.35);padding:4px 0;min-width:180px;animation:ctxIn .12s ease}
+@keyframes ctxIn{from{opacity:0;transform:scale(.96)}to{opacity:1;transform:scale(1)}}
+#contextMenu.show{display:block}
+.ctx-label{padding:6px 14px 2px;font-family:var(--mono);font-size:8px;letter-spacing:.12em;color:var(--muted);text-transform:uppercase}
+.ctx-divider{height:1px;background:var(--ctx-border);margin:4px 0}
+.ctx-item{display:flex;align-items:center;gap:8px;padding:8px 14px;font-family:var(--mono);font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--text);cursor:pointer;transition:background .1s}
+.ctx-item:hover{background:var(--ctx-hover)}
+.ctx-item.ctx-danger{color:var(--ctx-danger)}
+.ctx-item.ctx-danger:hover{background:rgba(255,68,85,.08)}
+.sep{width:1px;height:20px;background:var(--border)}
+.empty-state{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:40px 20px;color:var(--muted);font-family:var(--mono);font-size:10px;letter-spacing:.08em;text-align:center;gap:8px}
+.empty-icon{font-size:28px;opacity:.4}
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="topbar">
+    <div class="logo">GEO<span>/</span>ELEVATION</div>
+    <div class="topbar-divider"></div>
+    <div class="hint-text" id="hintText">Modo normal — <b>clic en mapa</b> para agregar punto · <b>clic derecho</b> en punto para eliminar</div>
+    <div class="mode-btns">
+      <button class="mode-btn" id="btnOrigin" onclick="toggleMode('origin')" style="border-color:var(--accent2); color:var(--accent2);">🎯 Definir Origen (0,0)</button>
+      <button class="mode-btn" id="btnArea" onclick="toggleMode('area')">⬜ Seleccionar Área</button>
+      <button class="mode-btn" id="btnLine" onclick="toggleMode('line')">📏 Dos Puntos</button>
+      <div class="sep"></div>
+      <button class="theme-toggle" onclick="toggleTheme()"><span id="themeIcon">☀</span><span id="themeLabel">Claro</span></button>
+      <div class="sep"></div>
+      <button class="mode-btn danger" onclick="clearAll()">✕ Limpiar</button>
+      <div class="sep"></div>
+      <button class="mode-btn" onclick="abrirVisualizador3D()" style="border-color:#00c8ff;color:#00c8ff;background:rgba(0,200,255,0.07);">🧊 Ver 3D</button>
+    </div>
+  </header>
+
+  <div class="map-wrap" id="mapWrap"><div id="map"></div></div>
+
+  <div class="right-panel">
+    <div class="panel-header">
+      <span class="panel-title">Puntos Capturados</span>
+      <span class="badge" id="countBadge">0 pts</span>
+    </div>
+    <div class="table-wrap" id="tableWrap">
+      <div class="empty-state" id="emptyState">
+        <div class="empty-icon">📍</div>
+        <div>Sin puntos aún</div>
+        <div style="color:#2a3050">Haz clic en el mapa</div>
+      </div>
+      <table id="pointsTable" style="display:none">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Etiqueta</th>
+            <th>Latitud</th>
+            <th>Longitud</th>
+            <th>X (m)</th>
+            <th>Y (m)</th>
+            <th>Altura m</th>
+          </tr>
+        </thead>
+        <tbody id="tableBody"></tbody>
+      </table>
+    </div>
+    <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+  </div>
+
+  <div class="manual-strip">
+    <div class="strip-section" style="max-width:420px">
+      <span class="strip-label">Manual</span>
+      <div class="input-group" style="max-width:120px"><label>Latitud</label><input type="text" id="manLat" value="-33.4500"></div>
+      <div class="input-group" style="max-width:120px"><label>Longitud</label><input type="text" id="manLon" value="-70.6700"></div>
+      <div class="input-group" style="max-width:100px"><label>Etiqueta</label><input type="text" id="manLabel" placeholder="P001"></div>
+      <button class="strip-btn" onclick="addManualPoint()">+ Agregar</button>
+    </div>
+    <div class="strip-section" style="flex:0;gap:8px">
+      <button class="strip-btn" onclick="refreshElevations()">↻ Actualizar Alturas</button>
+    </div>
+    <div class="strip-section" style="flex:0;gap:8px;margin-left:auto">
+      <button class="strip-btn orange" onclick="exportExcel()">⬇ Exportar Excel</button>
+      <button class="strip-btn" onclick="loadExcel()" style="border-color:var(--accent3);color:var(--accent3);background:rgba(124,108,255,.08)">⬆ Cargar Excel</button>
+      <input type="file" id="fileInput" accept=".xlsx" style="display:none" onchange="handleFileLoad(event)">
+    </div>
+  </div>
+
+  <div class="statusbar">
+    <div class="status-msg" id="statusMsg">Listo — <kbd>Ctrl</kbd>+<kbd>Z</kbd> deshacer · clic derecho en punto para eliminar · desplazar con botón central</div>
+    <div class="status-actions">
+      <button class="status-btn blue" onclick="undoLast()">↩ Deshacer</button>
+      <button class="status-btn red" onclick="deleteSelected()">Eliminar sel.</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modalOverlay">
+  <div class="modal">
+    <div class="modal-tag" id="modalTag">ÁREA SELECCIONADA</div>
+    <h2 id="modalTitle">Configurar Malla de Puntos</h2>
+    <p id="modalDesc">Elige cómo deseas distribuir los puntos dentro del área.</p>
+    
+    <div id="modalTabs" style="display:flex; gap:4px; margin-bottom:14px; background:var(--surface); padding:3px; border-radius:4px;">
+      <button id="tabCantidad" style="flex:1; font-family:var(--mono); font-size:10px; padding:6px; border:none; border-radius:3px; cursor:pointer; background:var(--accent); color:var(--bg); font-weight:bold;" onclick="cambiarModalTab('cantidad')">CANTIDAD PTS</button>
+      <button id="tabDistancia" style="flex:1; font-family:var(--mono); font-size:10px; padding:6px; border:none; border-radius:3px; cursor:pointer; background:transparent; color:var(--muted);" onclick="cambiarModalTab('distancia')">DISTANCIA (m)</button>
+    </div>
+
+    <div id="wrapperCantidad">
+      <input type="number" class="big-input" id="modalInput" value="25" min="1" max="2000">
+      <div class="modal-note">Recomendado: 4 – 500 puntos</div>
+    </div>
+
+    <div id="wrapperDistancia" style="display:none;">
+      <input type="number" class="big-input orange" id="modalDistanceInput" value="50" min="1">
+      <div class="modal-note">Espaciamiento regular en metros (Ej: 20, 50, 100)</div>
+    </div>
+
+    <div class="modal-btns">
+      <button class="modal-ok" id="modalOk" onclick="confirmModal()">Generar Puntos</button>
+      <button class="modal-cancel" onclick="cancelModal()">Cancelar</button>
+    </div>
+  </div>
+</div>
+
+<div id="contextMenu">
+  <div class="ctx-label" id="ctxLabel">Punto</div>
+  <div class="ctx-divider"></div>
+  <div class="ctx-item ctx-danger" onclick="deleteContextPoint()">✕ Eliminar punto</div>
+</div>
+
+<script>
+// ── THEME ──────────────────────────────────────────────────────────
+let currentTheme='dark', darkTile, lightTile;
+function toggleTheme(){
+  currentTheme=currentTheme==='dark'?'light':'dark';
+  document.documentElement.setAttribute('data-theme',currentTheme);
+  if(currentTheme==='light'){
+    document.getElementById('themeIcon').textContent='🌙';
+    document.getElementById('themeLabel').textContent='Oscuro';
+    map.removeLayer(darkTile); lightTile.addTo(map);
+  } else {
+    document.getElementById('themeIcon').textContent='☀';
+    document.getElementById('themeLabel').textContent='Claro';
+    map.removeLayer(lightTile); darkTile.addTo(map);
+  }
+}
+
+// ── STATE ──────────────────────────────────────────────────────────
+let points=[],mode='normal',areaCorner1=null,lineCorner1=null;
+let areaRect=null,linePolyline=null,tempMarkers=[],selectedRows=new Set();
+let idCounter=0,undoStack=[],markerMap={},ctxPointId=null,persistentRects=[];
+let modalContext=null;
+let originCoords = null; 
+let originMarker = null;
+
+// ── MAP INIT ───────────────────────────────────────────────────────
+const map=L.map('map',{zoomControl:true,attributionControl:false,dragging:false,scrollWheelZoom:true}).setView([-33.45,-70.67],10);
+darkTile=L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',{maxZoom:19});
+lightTile=L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',{maxZoom:19});
+darkTile.addTo(map);
+L.control.attribution({prefix:false}).addTo(map);
+
+// ── MIDDLE BUTTON PAN ──────────────────────────────────────────────
+let isPanning=false,panStart=null;
+const mapEl=document.getElementById('map');
+mapEl.addEventListener('mousedown',e=>{if(e.button===1){e.preventDefault();isPanning=true;panStart={x:e.clientX,y:e.clientY};mapEl.style.cursor='grabbing';}});
+window.addEventListener('mousemove',e=>{if(!isPanning)return;const dx=e.clientX-panStart.x,dy=e.clientY-panStart.y;panStart={x:e.clientX,y:e.clientY};map.panBy([-dx,-dy],{animate:false});});
+window.addEventListener('mouseup',e=>{if(e.button===1&&isPanning){isPanning=false;mapEl.style.cursor='';}});
+mapEl.addEventListener('auxclick',e=>{if(e.button===1)e.preventDefault();});
+
+// ── MAP CLICK ──────────────────────────────────────────────────────
+map.on('click', e => {
+  closeContextMenu();
+  if (mode === 'origin') {
+    setOriginPoint(e.latlng.lat, e.latlng.lng);
+  } else if (mode === 'normal') {
+    addPoint(e.latlng.lat, e.latlng.lng);
+  } else if (mode === 'area') {
+    handleAreaClick(e.latlng.lat, e.latlng.lng);
+  } else if (mode === 'line') {
+    handleLineClick(e.latlng.lat, e.latlng.lng);
+  }
+});
+map.getContainer().addEventListener('contextmenu',e=>e.preventDefault());
+
+// ── KEYBOARD ───────────────────────────────────────────────────────
+document.addEventListener('keydown',e=>{
+  if((e.ctrlKey||e.metaKey)&&e.key==='z'){e.preventDefault();undoLast();}
+  if(e.key==='Escape'){closeContextMenu();setMode('normal');}
+});
+document.addEventListener('click',e=>{if(!document.getElementById('contextMenu').contains(e.target))closeContextMenu();});
+
+// ── CONTEXT MENU ───────────────────────────────────────────────────
+function openContextMenu(ev,pointId){
+  ev.preventDefault();ev.stopPropagation();
+  ctxPointId=pointId;
+  const pt=points.find(p=>p.id===pointId);
+  document.getElementById('ctxLabel').textContent=pt?pt.label:'Punto';
+  const menu=document.getElementById('contextMenu');
+  menu.classList.add('show');
+  let x=ev.clientX,y=ev.clientY;
+  if(x+190>window.innerWidth)x=window.innerWidth-194;
+  if(y+80>window.innerHeight)y=window.innerHeight-84;
+  menu.style.left=x+'px';menu.style.top=y+'px';
+}
+function closeContextMenu(){document.getElementById('contextMenu').classList.remove('show');ctxPointId=null;}
+function deleteContextPoint(){
+  if(ctxPointId===null)return;
+  saveUndo();
+  const id=ctxPointId;
+  if(markerMap[id]){map.removeLayer(markerMap[id]);delete markerMap[id];}
+  points=points.filter(p=>p.id!==id);selectedRows.delete(id);
+  rebuildTable();setStatus(`Punto eliminado. Quedan ${points.length} puntos.`);
+  closeContextMenu();
+}
+
+// ── UNDO ───────────────────────────────────────────────────────────
+function saveUndo(){undoStack.push({points:JSON.parse(JSON.stringify(points)),idCounter});if(undoStack.length>50)undoStack.shift();}
+function undoLast(){
+  if(undoStack.length===0){setStatus('Nada para deshacer');return;}
+  const prev=undoStack.pop();
+  Object.values(markerMap).forEach(l=>map.removeLayer(l));markerMap={};
+  points=prev.points;idCounter=prev.idCounter;selectedRows.clear();
+  points.forEach(p=>{
+    bindMarkerEvents(p);
+  });
+  rebuildTable();setStatus(`↩ Deshacer — ${points.length} puntos`);
+}
+
+// ── ELEVATION API ──────────────────────────────────────────────────
+async function fetchElevationBatch(coords){
+  try{
+    const r=await fetch(`https://api.open-meteo.com/v1/elevation?latitude=${coords.map(c=>c[0]).join(',')}&longitude=${coords.map(c=>c[1]).join(',')}`);
+    if(r.ok){const d=await r.json();if(d.elevation)return d.elevation;}
+  }catch(e){}
+  try{
+    const r=await fetch(`https://api.open-elevation.com/api/v1/lookup?locations=${coords.map(c=>`${c[0]},${c[1]}`).join('|')}`);
+    if(r.ok){const d=await r.json();return d.results.map(x=>x.elevation);}
+  }catch(e){}
+  return coords.map(()=>null);
+}
+
+// ── MODE ───────────────────────────────────────────────────────────
+function toggleMode(m){mode===m?setMode('normal'):setMode(m);}
+function setMode(m){
+  mode=m;areaCorner1=null;lineCorner1=null;clearTempVisuals();
+  document.getElementById('mapWrap').classList.remove('mode-area','mode-line');
+  document.getElementById('btnArea').className='mode-btn';
+  document.getElementById('btnLine').className='mode-btn';
+  document.getElementById('btnOrigin').className='mode-btn';
+  
+  if(m==='origin') {
+    document.getElementById('btnOrigin').className='mode-btn active';
+    setHint('<b>MODO ORIGEN</b> — Haz <b>clic en el mapa</b> o en un <b>marcador existente</b> para establecer el cero (0,0)');
+    setStatus('Modo Origen — Selecciona el punto de referencia cartesiana');
+  }else if(m==='area'){
+    document.getElementById('mapWrap').classList.add('mode-area');
+    document.getElementById('btnArea').className='mode-btn active';
+    setHint('<b>MODO ÁREA</b> — Clic 1: esquina inicial &nbsp;|&nbsp; Clic 2: esquina opuesta');
+    setStatus('Modo Área — haz clic en la primera esquina del rectángulo');
+  }else if(m==='line'){
+    document.getElementById('mapWrap').classList.add('mode-line');
+    document.getElementById('btnLine').className='mode-btn active-purple';
+    setHint('<b>MODO DOS PUNTOS</b> — Clic 1: punto inicio &nbsp;|&nbsp; Clic 2: punto final');
+    setStatus('Modo Dos Puntos — haz clic en el punto de inicio');
+  }else{
+    setHint('Modo normal — <b>clic en mapa</b> para agregar punto · <b>clic derecho</b> en punto para eliminar');
+    setStatus('Listo');
+  }
+}
+function clearTempVisuals(){
+  if(areaRect){map.removeLayer(areaRect);areaRect=null;}
+  if(linePolyline){map.removeLayer(linePolyline);linePolyline=null;}
+  tempMarkers.forEach(m=>map.removeLayer(m));tempMarkers=[];
+}
+
+// ── AREA MODE ──────────────────────────────────────────────────────
+function handleAreaClick(lat,lng){
+  if(!areaCorner1){
+    areaCorner1=[lat,lng];
+    const m=L.circleMarker([lat,lng],{radius:6,color:'#3dffc0',fillColor:'#3dffc0',fillOpacity:1,weight:2}).addTo(map).bindTooltip('Esquina 1',{permanent:true,direction:'top'});
+    tempMarkers.push(m);
+    setStatus(`Esquina 1: (${lat.toFixed(5)}, ${lng.toFixed(5)}) — haz clic en la esquina opuesta`);
+  }else{
+    const[lat1,lng1]=areaCorner1;
+    const bounds=[[Math.min(lat1,lat),Math.min(lng1,lng)],[Math.max(lat1,lat),Math.max(lng1,lng)]];
+    if(areaRect)map.removeLayer(areaRect);
+    areaRect=L.rectangle(bounds,{color:'#3dffc0',weight:2,fill:true,fillColor:'#3dffc0',fillOpacity:0.06}).addTo(map);
+    const m=L.circleMarker([lat,lng],{radius:6,color:'#3dffc0',fillColor:'#3dffc0',fillOpacity:1,weight:2}).addTo(map).bindTooltip('Esquina 2',{permanent:true,direction:'top'});
+    tempMarkers.push(m);
+    showModal('area',lat1,lng1,lat,lng);
+  }
+}
+
+// ── LINE MODE ──────────────────────────────────────────────────────
+function handleLineClick(lat,lng){
+  if(!lineCorner1){
+    lineCorner1=[lat,lng];
+    const m=L.circleMarker([lat,lng],{radius:6,color:'#7c6cff',fillColor:'#7c6cff',fillOpacity:1,weight:2}).addTo(map).bindTooltip('Inicio',{permanent:true,direction:'top'});
+    tempMarkers.push(m);
+    setStatus(`Inicio: (${lat.toFixed(5)}, ${lng.toFixed(5)}) — haz clic en el punto final`);
+  }else{
+    const[lat1,lng1]=lineCorner1;
+    if(linePolyline)map.removeLayer(linePolyline);
+    linePolyline=L.polyline([[lat1,lng1],[lat,lng]],{color:'#7c6cff',weight:2,dashArray:'6 4'}).addTo(map);
+    const m=L.circleMarker([lat,lng],{radius:6,color:'#7c6cff',fillColor:'#7c6cff',fillOpacity:1,weight:2}).addTo(map).bindTooltip('Final',{permanent:true,direction:'top'});
+    tempMarkers.push(m);
+    showModal('line',lat1,lng1,lat,lng);
+  }
+}
+
+// ── MODAL ──────────────────────────────────────────────────────────
+let modalTabActual = 'cantidad'; 
+
+function cambiarModalTab(tab) {
+  modalTabActual = tab;
+  const btnCant = document.getElementById('tabCantidad');
+  const btnDist = document.getElementById('tabDistancia');
+  const wrapCant = document.getElementById('wrapperCantidad');
+  const wrapDist = document.getElementById('wrapperDistancia');
+  
+  if(tab === 'cantidad') {
+    btnCant.style.background = 'var(--accent)'; btnCant.style.color = 'var(--bg)'; btnCant.style.fontWeight = 'bold';
+    btnDist.style.background = 'transparent'; btnDist.style.color = 'var(--muted)'; btnDist.style.fontWeight = 'normal';
+    wrapCant.style.display = 'block'; wrapDist.style.display = 'none';
+    setTimeout(() => document.getElementById('modalInput').select(), 50);
+  } else {
+    btnDist.style.background = 'var(--accent2)'; btnDist.style.color = 'white'; btnDist.style.fontWeight = 'bold';
+    btnCant.style.background = 'transparent'; btnCant.style.color = 'var(--muted)'; btnCant.style.fontWeight = 'normal';
+    wrapCant.style.display = 'none'; wrapDist.style.display = 'block';
+    setTimeout(() => document.getElementById('modalDistanceInput').select(), 50);
+  }
+}
+
+function showModal(type,lat1,lng1,lat2,lng2){
+  modalContext={type,lat1,lng1,lat2,lng2};
+  const isArea=type==='area';
+  document.getElementById('modalTag').textContent=isArea?'ÁREA SELECCIONADA':'SEGMENTO SELECCIONADO';
+  document.getElementById('modalTag').className='modal-tag'+(isArea?'':' purple');
+  document.getElementById('modalTitle').textContent=isArea?'Configurar Malla de Puntos':'¿Cuántos puntos?';
+  document.getElementById('modalDesc').textContent=isArea?'Elige cómo deseas distribuir los puntos dentro del área.':'Los puntos se distribuirán a lo largo del segmento entre los dos puntos.';
+  
+  document.getElementById('modalTabs').style.display = isArea ? 'flex' : 'none';
+  cambiarModalTab('cantidad'); 
+  
+  document.getElementById('modalInput').value=isArea?'25':'10';
+  document.getElementById('modalInput').className='big-input'+(isArea?'':' orange');
+  document.getElementById('modalOk').className='modal-ok'+(isArea?'':' orange');
+  document.getElementById('modalOverlay').classList.add('show');
+  
+  document.getElementById('modalInput').onkeydown=e=>{if(e.key==='Enter')confirmModal();};
+  document.getElementById('modalDistanceInput').onkeydown=e=>{if(e.key==='Enter')confirmModal();};
+}
+
+function confirmModal(){
+  const{type,lat1,lng1,lat2,lng2}=modalContext;
+  const savedRect=areaRect; areaRect=null;
+  
+  if(type==='area' && modalTabActual === 'distancia') {
+    const metros = parseFloat(document.getElementById('modalDistanceInput').value);
+    if(!metros || metros <= 0) {
+      document.getElementById('modalDistanceInput').style.borderColor='var(--danger)';
+      setTimeout(()=>document.getElementById('modalDistanceInput').style.borderColor='',500); return;
+    }
+    document.getElementById('modalOverlay').classList.remove('show');
+    generateAreaPointsByDistance(lat1,lng1,lat2,lng2,metros,savedRect);
+  } else {
+    const n=parseInt(document.getElementById('modalInput').value);
+    if(!n||n<1){document.getElementById('modalInput').style.borderColor='var(--danger)';setTimeout(()=>document.getElementById('modalInput').style.borderColor='',500);return;}
+    document.getElementById('modalOverlay').classList.remove('show');
+    if(type==='area') generateAreaPoints(lat1,lng1,lat2,lng2,n,savedRect);
+    else generateLinePoints(lat1,lng1,lat2,lng2,n);
+  }
+  setMode('normal');
+}
+
+// ── BIND MARKER EVENTS (Manejador unificado de clics en marcadores) ─────
+function bindMarkerEvents(pt) {
+  const color=pt.type==='A'?'#ff6b35':pt.type==='L'?'#7c6cff':'#3dffc0';
+  const marker=L.circleMarker([pt.lat,pt.lng],{radius:5,color,fillColor:color,fillOpacity:.9,weight:1.5}).addTo(map);
+  
+  // SOLUCIÓN: El marcador escucha su propio clic
+  marker.on('click', ev => {
+    L.DomEvent.stopPropagation(ev); // Evita activar el clic del mapa base
+    if(mode === 'origin') {
+      setOriginPoint(pt.lat, pt.lng);
+    } else {
+      toggleSelect(pt.id);
+    }
+  });
+
+  marker.on('contextmenu',ev=>{
+    openContextMenu(ev.originalEvent,pt.id);
+  });
+  
+  marker.bindPopup(`<b>${pt.label}</b><br>${pt.lat.toFixed(5)}, ${pt.lng.toFixed(5)}`);
+  markerMap[pt.id]=marker;
+}
+
+// ── GENERATE AREA POINTS ───────────────────────────────────────
+async function generateAreaPoints(lat1,lng1,lat2,lng2,n,rectLayer){
+  saveUndo();
+  const latMin=Math.min(lat1,lat2),latMax=Math.max(lat1,lat2);
+  const lngMin=Math.min(lng1,lng2),lngMax=Math.max(lng1,lng2);
+  const ratio=(lngMax-lngMin+1e-9)/(latMax-latMin+1e-9);
+  let cols=Math.max(1,Math.round(Math.sqrt(n*ratio)));
+  let rows=Math.max(1,Math.ceil(n/cols));
+  while(cols*rows>n+Math.max(cols,rows)){cols>rows?cols--:rows--;}
+  cols=Math.max(1,cols);rows=Math.max(1,rows);
+  const coords=[];
+  for(let r=0;r<rows&&coords.length<n;r++)
+    for(let c=0;c<cols&&coords.length<n;c++){
+      const lat=rows>1?latMin+(latMax-latMin)*r/(rows-1):(latMin+latMax)/2;
+      const lng=cols>1?lngMin+(lngMax-lngMin)*c/(cols-1):(lngMin+lngMax)/2;
+      coords.push([lat,lng]);
+    }
+  
+  setStatus(`Consultando altura de ${coords.length} puntos…`);setProgress(10);
+  
+  const elevs = [];
+  const chunk = 100;
+  for (let i = 0; i < coords.length; i += chunk) {
+    const chunkCoords = coords.slice(i, i + chunk);
+    const chunkElevs = await fetchElevationBatch(chunkCoords);
+    elevs.push(...chunkElevs);
+    setProgress(10 + 80 * (Math.min(i + chunk, coords.length)) / coords.length);
+  }
+  
+  setProgress(90);
+  tempMarkers.forEach(m=>map.removeLayer(m));tempMarkers=[];
+  if(rectLayer)persistentRects.push(rectLayer);
+  
+  coords.forEach(([lat,lng],i)=>{
+    const id=++idCounter;
+    const label=`A${String(points.length+1).padStart(3,'0')}`;
+    const elev=elevs[i]!==undefined?elevs[i]:null;
+    
+    const pt={id,lat,lng,elev,label,type:'A'};
+    if (originCoords) {
+      pt.x = (lng - originCoords.lng) * 111320 * Math.cos(originCoords.lat * Math.PI / 180);
+      pt.y = (lat - originCoords.lat) * 111320;
+    }
+    points.push(pt);
+    addTableRow(id,label,lat,lng,elev,'A');
+    bindMarkerEvents(pt);
+  });
+  setProgress(100);setTimeout(()=>setProgress(0),600);
+  updateCount();setStatus(`✔ ${coords.length} puntos de área generados`);
+}
+
+async function generateAreaPointsByDistance(lat1,lng1,lat2,lng2,metros,rectLayer) {
+  saveUndo();
+  const latMin=Math.min(lat1,lat2), latMax=Math.max(lat1,lat2);
+  const lngMin=Math.min(lng1,lng2), lngMax=Math.max(lng1,lng2);
+  const latMedia = (latMin + latMax) / 2;
+  
+  const deltaLat = metros / 111320;
+  const deltaLng = metros / (111320 * Math.cos(latMedia * Math.PI / 180));
+  
+  const coords = [];
+  for (let lat = latMin; lat <= latMax + 1e-9; lat += deltaLat) {
+    for (let lng = lngMin; lng <= lngMax + 1e-9; lng += deltaLng) {
+      coords.push([lat, lng]);
+    }
+  }
+  
+  if(coords.length === 0) { setStatus('⚠ El espaciamiento es demasiado grande para esta área'); return; }
+  if(coords.length > 2500) {
+    if(!confirm(`Se van a generar ${coords.length} puntos. Esto puede ralentizar la app. ¿Deseas continuar?`)) {
+      clearTempVisuals(); return;
+    }
+  }
+  
+  setStatus(`Consultando altura de ${coords.length} puntos…`);setProgress(10);
+  
+  const elevs = [];
+  const chunk = 100;
+  for (let i = 0; i < coords.length; i += chunk) {
+    const chunkCoords = coords.slice(i, i + chunk);
+    const chunkElevs = await fetchElevationBatch(chunkCoords);
+    elevs.push(...chunkElevs);
+    setProgress(10 + 80 * (Math.min(i + chunk, coords.length)) / coords.length);
+  }
+  
+  setProgress(90);
+  tempMarkers.forEach(m=>map.removeLayer(m)); tempMarkers=[];
+  if(rectLayer) persistentRects.push(rectLayer);
+  
+  coords.forEach(([lat,lng],i)=>{
+    const id=++idCounter;
+    const label=`A${String(points.length+1).padStart(3,'0')}`;
+    const elev=elevs[i]!==undefined?elevs[i]:null;
+    
+    const pt={id,lat,lng,elev,label,type:'A'};
+    if (originCoords) {
+      pt.x = (lng - originCoords.lng) * 111320 * Math.cos(originCoords.lat * Math.PI / 180);
+      pt.y = (lat - originCoords.lat) * 111320;
+    }
+    points.push(pt);
+    addTableRow(id,label,lat,lng,elev,'A');
+    bindMarkerEvents(pt);
+  });
+  
+  setProgress(100); setTimeout(()=>setProgress(0),600);
+  updateCount(); setStatus(`✔ Malla de ${coords.length} puntos creada (${metros}m de separación)`);
+}
+
+// ── GENERATE LINE POINTS ───────────────────────────────────────
+async function generateLinePoints(lat1,lng1,lat2,lng2,n){
+  saveUndo();
+  const coords=[];
+  for(let i=0;i<n;i++){const t=n>1?i/(n-1):.5;coords.push([lat1+(lat2-lat1)*t,lng1+(lng2-lng1)*t]);}
+  
+  setStatus(`Consultando altura de ${coords.length} puntos…`);setProgress(10);
+  
+  const elevs = [];
+  const chunk = 100;
+  for (let i = 0; i < coords.length; i += chunk) {
+    const chunkCoords = coords.slice(i, i + chunk);
+    const chunkElevs = await fetchElevationBatch(chunkCoords);
+    elevs.push(...chunkElevs);
+    setProgress(10 + 80 * (Math.min(i + chunk, coords.length)) / coords.length);
+  }
+  
+  setProgress(90);
+  L.polyline(coords,{color:'#7c6cff',weight:1.5,opacity:.7}).addTo(map);
+  L.circleMarker(coords[0],{radius:5,color:'#7c6cff',fillColor:'#7c6cff',fillOpacity:1}).addTo(map);
+  L.circleMarker(coords[coords.length-1],{radius:5,color:'#7c6cff',fillColor:'#7c6cff',fillOpacity:1}).addTo(map);
+  
+  coords.forEach(([lat,lng],i)=>{
+    const id=++idCounter;
+    const label=`L${String(points.length+1).padStart(3,'0')}`;
+    const elev=elevs[i]!==undefined?elevs[i]:null;
+    
+    const pt={id,lat,lng,elev,label,type:'L'};
+    if (originCoords) {
+      pt.x = (lng - originCoords.lng) * 111320 * Math.cos(originCoords.lat * Math.PI / 180);
+      pt.y = (lat - originCoords.lat) * 111320;
+    }
+    points.push(pt);
+    addTableRow(id,label,lat,lng,elev,'L');
+    bindMarkerEvents(pt);
+  });
+  setProgress(100);setTimeout(()=>setProgress(0),600);
+  updateCount();setStatus(`✔ ${coords.length} puntos de segmento generados`);
+}
+
+// ── SINGLE POINT ───────────────────────────────────────────────────
+async function addPoint(lat,lng,label=null){
+  saveUndo();
+  const id=++idCounter;
+  if(!label)label=`P${String(points.length+1).padStart(3,'0')}`;
+  const pt={id,lat,lng,elev:null,label,type:'P'};
+  if (originCoords) {
+    pt.x = (lng - originCoords.lng) * 111320 * Math.cos(originCoords.lat * Math.PI / 180);
+    pt.y = (lat - originCoords.lat) * 111320;
+  }
+  points.push(pt);
+  addTableRow(id,label,lat,lng,null,'P',true);updateCount();
+  bindMarkerEvents(pt);
+  
+  const elevs=await fetchElevationBatch([[lat,lng]]);
+  pt.elev=elevs[0];updateRowElev(id,elevs[0]);
+  setStatus(`✔ ${label} — Altura: ${elevs[0]!==null?elevs[0].toFixed(1)+' m':'N/A'}`);
+}
+function addManualPoint(){
+  const lat=parseFloat(document.getElementById('manLat').value);
+  const lng=parseFloat(document.getElementById('manLon').value);
+  const label=document.getElementById('manLabel').value.trim()||null;
+  if(isNaN(lat)||isNaN(lng)||lat<-90||lat>90||lng<-180||lng>180){setStatus('⚠ Coordenadas inválidas');return;}
+  addPoint(lat,lng,label);map.setView([lat,lng]);
+}
+
+// ── TABLE ──────────────────────────────────────────────────────────
+function addTableRow(id,label,lat,lng,elev,type,loading=false){
+  document.getElementById('emptyState').style.display='none';
+  document.getElementById('pointsTable').style.display='table';
+  const tbody=document.getElementById('tableBody');
+  const tr=document.createElement('tr');tr.dataset.id=id;tr.onclick=()=>toggleSelect(id);
+  const tc=type==='A'?'type-A':type==='L'?'type-L':'type-P';
+  const elevStr=loading?'<span class="loading">…</span>':elev!==null&&elev!==undefined?`${parseFloat(elev).toFixed(1)}`:'—';
+  
+  const pt = points.find(p => p.id === id);
+  const xStr = (pt && pt.x !== undefined) ? pt.x.toFixed(2) : '—';
+  const yStr = (pt && pt.y !== undefined) ? pt.y.toFixed(2) : '—';
+
+  tr.innerHTML=`<td style="color:var(--muted);font-size:9px">${points.length}</td><td class="${tc}">${label}</td><td>${lat.toFixed(5)}</td><td>${lng.toFixed(5)}</td><td>${xStr}</td><td>${yStr}</td><td class="elev" id="elev-${id}">${elevStr}</td>`;
+  tbody.appendChild(tr);document.getElementById('tableWrap').scrollTop=99999;
+}
+function updateRowElev(id,elev){
+  const cell=document.getElementById(`elev-${id}`);
+  if(cell)cell.innerHTML=elev!==null&&elev!==undefined?`${parseFloat(elev).toFixed(1)}`:'—';
+}
+function toggleSelect(id){
+  if(selectedRows.has(id))selectedRows.delete(id);else selectedRows.add(id);
+  document.querySelectorAll(`tr[data-id="${id}"]`).forEach(tr=>tr.classList.toggle('selected'));
+}
+function rebuildTable(){
+  document.getElementById('tableBody').innerHTML='';
+  if(points.length===0){
+    document.getElementById('emptyState').style.display='flex';
+    document.getElementById('pointsTable').style.display='none';
+  }else{
+    document.getElementById('emptyState').style.display='none';
+    document.getElementById('pointsTable').style.display='table';
+    points.forEach((p,i)=>{
+      const tr=document.createElement('tr');tr.dataset.id=p.id;tr.onclick=()=>toggleSelect(p.id);
+      if(selectedRows.has(p.id))tr.classList.add('selected');
+      const tc=p.type==='A'?'type-A':p.type==='L'?'type-L':'type-P';
+      
+      const xStr = p.x !== undefined ? p.x.toFixed(2) : '—';
+      const yStr = p.y !== undefined ? p.y.toFixed(2) : '—';
+      
+      tr.innerHTML=`<td style="color:var(--muted);font-size:9px">${i+1}</td><td class="${tc}">${p.label}</td><td>${p.lat.toFixed(5)}</td><td>${p.lng.toFixed(5)}</td><td>${xStr}</td><td>${yStr}</td><td class="elev" id="elev-${p.id}">${p.elev!==null&&p.elev!==undefined?parseFloat(p.elev).toFixed(1):'—'}</td>`;
+      document.getElementById('tableBody').appendChild(tr);
+    });
+  }
+  updateCount();
+}
+
+// ── ACTIONS ────────────────────────────────────────────────────────
+function deleteSelected(){
+  if(selectedRows.size===0){setStatus('Selecciona filas primero (clic en la tabla)');return;}
+  saveUndo();
+  selectedRows.forEach(id=>{if(markerMap[id]){map.removeLayer(markerMap[id]);delete markerMap[id];}});
+  points=points.filter(p=>!selectedRows.has(p.id));selectedRows.clear();
+  rebuildTable();setStatus(`Eliminados. Quedan ${points.length} puntos.`);
+}
+function clearAll(){
+  if(points.length===0)return;
+  if(!confirm(`¿Eliminar todos los ${points.length} puntos?`))return;
+  saveUndo();points=[];idCounter=0;selectedRows.clear();
+  Object.values(markerMap).forEach(l=>map.removeLayer(l));markerMap={};
+  persistentRects.forEach(r=>map.removeLayer(r));persistentRects=[];
+  if (originMarker) {map.removeLayer(originMarker); originMarker=null;}
+  originCoords=null;
+  clearTempVisuals();
+  map.eachLayer(l=>{if(!(l instanceof L.TileLayer))map.removeLayer(l);});
+  rebuildTable();setStatus('Tabla limpiada.');
+}
+async function refreshElevations(){
+  if(points.length===0){setStatus('No hay puntos');return;}
+  setStatus('Actualizando alturas…');setProgress(10);
+  const coords=points.map(p=>[p.lat,p.lng]);const chunk=100;
+  for(let i=0;i<coords.length;i+=chunk){
+    const elevs=await fetchElevationBatch(coords.slice(i,i+chunk));
+    elevs.forEach((e,j)=>{points[i+j].elev=e;updateRowElev(points[i+j].id,e);});
+    setProgress(10+85*(i+chunk)/coords.length);
+  }
+  setProgress(100);setTimeout(()=>setProgress(0),600);
+  setStatus(`✔ Alturas actualizadas para ${points.length} puntos`);
+}
+
+// ── EXCEL EXPORT ──────────────────────────────────────────────────
+function exportExcel(){
+  if(points.length===0){setStatus('No hay puntos para exportar');return;}
+  const wb=XLSX.utils.book_new();
+  const rows=[['#','Etiqueta','Tipo','Latitud (°)','Longitud (°)','X (m)','Y (m)','Z / Altura (m)']];
+  
+  points.forEach((p,i)=>rows.push([
+    i+1,
+    p.label,
+    p.type==='A'?'Área':p.type==='L'?'Segmento':'Individual',
+    p.lat,
+    p.lng,
+    p.x !== undefined ? parseFloat(p.x.toFixed(3)) : '',
+    p.y !== undefined ? parseFloat(p.y.toFixed(3)) : '',
+    p.elev!==null&&p.elev!==undefined?p.elev:''
+  ]));
+  
+  const ws=XLSX.utils.aoa_to_sheet(rows);
+  ws['!cols']=[{wch:5},{wch:12},{wch:12},{wch:14},{wch:14},{wch:12},{wch:12},{wch:14}];
+  XLSX.utils.book_append_sheet(wb,ws,'Puntos 3D');
+  XLSX.writeFile(wb,`puntos_3d_${new Date().toISOString().slice(0,10)}.xlsx`);
+  setStatus('✔ Excel exportado con datos X,Y,Z');
+}
+function loadExcel(){document.getElementById('fileInput').click();}
+function handleFileLoad(e){
+  const file=e.target.files[0];if(!file)return;
+  const reader=new FileReader();
+  reader.onload=ev=>{
+    const wb=XLSX.read(ev.target.result,{type:'binary'});
+    const ws=wb.Sheets[wb.SheetNames[0]];
+    const allRows=XLSX.utils.sheet_to_json(ws,{header:1}).slice(1);
+    let loaded=0;saveUndo();
+    allRows.forEach(row=>{
+      if(!row[0])return;
+      const id=++idCounter;
+      let lat,lng,elev,label,type;
+      if(typeof row[1]==='string'&&isNaN(parseFloat(row[1]))){
+        label=row[1];type=row[2]==='Área'?'A':row[2]==='Segmento'?'L':'P';
+        lat=parseFloat(row[3]);lng=parseFloat(row[4]);elev=parseFloat(row[5])||null;
+      }else{
+        lat=parseFloat(row[0]);lng=parseFloat(row[1]);
+        elev=parseFloat(row[2])||null;
+        label=row[3]||`P${String(points.length+1).padStart(3,'0')}`;
+        type=row[4]||'P';
+      }
+      if(isNaN(lat)||isNaN(lng))return;
+      
+      const pt={id,lat,lng,elev,label,type};
+      if (originCoords) {
+        pt.x = (lng - originCoords.lng) * 111320 * Math.cos(originCoords.lat * Math.PI / 180);
+        pt.y = (lat - originCoords.lat) * 111320;
+      }
+      points.push(pt);
+      bindMarkerEvents(pt);
+      loaded++;
+    });
+    rebuildTable();setStatus(`✔ ${loaded} puntos cargados desde ${file.name}`);e.target.value='';
+  };
+  reader.readAsBinaryString(file);
+}
+
+// ── CARTESIAN ORIGIN SETTER ────────────────────────────────────────
+function setOriginPoint(lat, lng) {
+  saveUndo();
+  originCoords = { lat, lng };
+  
+  if (originMarker) map.removeLayer(originMarker);
+  
+  originMarker = L.marker([lat, lng], {
+    icon: L.divIcon({
+      className: 'custom-origin-icon',
+      html: '<div style="background:#ff6b35; width:16px; height:16px; border-radius:50%; border:3px solid white; box-shadow:0 0 10px rgba(0,0,0,0.6); pointer-events:none;"></div>',
+      iconSize: [16, 16],
+      iconAnchor: [8, 8]
+    }),
+    zIndexOffset: 1000 // Asegura que el pin de origen se dibuje arriba de los círculos normales
+  }).addTo(map).bindPopup(`<b>ORIGEN (0,0)</b><br>Asignado en: ${lat.toFixed(5)}, ${lng.toFixed(5)}`).openPopup();
+  
+  recalculateCartesianCoordinates();
+  setMode('normal');
+  setStatus(`✔ Origen establecido con éxito. Coordenadas cartesianas X,Y actualizadas.`);
+}
+
+function recalculateCartesianCoordinates() {
+  if (!originCoords) return;
+  const lat0 = originCoords.lat;
+  const lng0 = originCoords.lng;
+  
+  points.forEach(p => {
+    p.x = (p.lng - lng0) * 111320 * Math.cos(lat0 * Math.PI / 180);
+    p.y = (p.lat - lat0) * 111320;
+  });
+  rebuildTable();
+}
+
+// ── HELPERS ────────────────────────────────────────────────────────
+function setHint(html){document.getElementById('hintText').innerHTML=html;}
+function setStatus(msg){document.getElementById('statusMsg').innerHTML=msg;}
+function updateCount(){const n=points.length;document.getElementById('countBadge').textContent=`${n} pt${n!==1?'s':''}`;}
+function setProgress(pct){const f=document.getElementById('progressFill');f.style.width=pct+'%';f.style.background=pct>=100?'var(--success)':'var(--accent)';}
+document.getElementById('modalOverlay').addEventListener('click',e=>{if(e.target===e.currentTarget)cancelModal();});
+function cancelModal(){document.getElementById('modalOverlay').classList.remove('show');clearTempVisuals();setMode('normal');}
+
+// ── ABRIR VISUALIZADOR 3D ──────────────────────────────────────────
+function abrirVisualizador3D(){
+  if(points.length===0){setStatus('⚠ No hay puntos para transferir al visualizador 3D');return;}
+  const datos = {
+    points: points.map(p=>({
+      id: p.id, label: p.label, type: p.type,
+      lat: p.lat, lng: p.lng,
+      x: p.x !== undefined ? p.x : null,
+      y: p.y !== undefined ? p.y : null,
+      elev: p.elev !== null && p.elev !== undefined ? p.elev : null,
+    })),
+    originCoords: originCoords || null,
+    exportedAt: new Date().toISOString(),
+  };
+  const jsonStr = JSON.stringify(datos);
+  // Método 1: localStorage (funciona en servidor local / mismo origen file://)
+  try { localStorage.setItem('geoElevationPoints', jsonStr); } catch(e){}
+  // Método 2: codificar en fragment de la URL (funciona siempre incluso en file://)
+  const b64 = btoa(unescape(encodeURIComponent(jsonStr)));
+  setStatus(`✔ ${points.length} puntos guardados — abriendo visualizador 3D…`);
+  window.open('visualizador3d.html#geo=' + b64, '_blank');
+}
+</script>
+</body>
+</html>
