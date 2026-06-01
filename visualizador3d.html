@@ -1551,6 +1551,53 @@
       background: var(--accent);
       color: #0d1117;
     }
+
+    /* Escala de colores para el modo elevación */
+    #elevation-legend {
+      position: absolute;
+      top: 16px;
+      right: 16px;
+      background: rgba(19, 28, 39, 0.85);
+      border: 1px solid var(--border);
+      padding: 10px;
+      display: none; /* Se activa dinámicamente desde JS */
+      flex-direction: column;
+      gap: 8px;
+      z-index: 100;
+      width: 85px;
+      font-family: var(--font-mono);
+      box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+    }
+    .legend-title {
+      font-size: 9px;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      text-align: center;
+      letter-spacing: 0.05em;
+      line-height: 1.2;
+    }
+    .legend-body {
+      display: flex;
+      height: 150px;
+      gap: 8px;
+      align-items: center;
+    }
+    .legend-bar {
+      width: 14px;
+      height: 100%;
+      /* Mismos códigos de color RGB exactos calculados por Three.js */
+      background: linear-gradient(to top, rgb(51, 82, 115), rgb(64, 107, 71), rgb(133, 107, 71), rgb(140, 128, 112), rgb(209, 204, 199));
+      border: 1px solid rgba(255,255,255,0.1);
+    }
+    .legend-labels {
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      height: 100%;
+      font-size: 10px;
+      color: var(--accent);
+    }
+
   </style>
 </head>
 
@@ -1621,9 +1668,26 @@
       </button>
 
       <div class="addpt-panel hidden" id="addpt-manual-panel">
-        <input class="addpt-input" id="addpt-lat" type="number" step="any" placeholder="Latitud">
-        <input class="addpt-input" id="addpt-lng" type="number" step="any" placeholder="Longitud">
-        <input class="addpt-input" id="addpt-elev" type="number" step="any" placeholder="Altura (m)">
+        <select class="cfg-select" id="addpt-type-select" onchange="toggleManualCoordInputs()" style="width:100%; margin-bottom:6px; background:#0d1117; color:var(--text-primary); border:1px solid var(--border); font-family:var(--font-mono); font-size:11px; padding:5px;">
+          <option value="geo">Latitud / Longitud</option>
+          <option value="utm">UTM (Este / Norte)</option>
+        </select>
+        <div id="manual-geo-inputs">
+          <input class="addpt-input" id="addpt-lat" type="number" step="any" placeholder="Latitud">
+          <input class="addpt-input" id="addpt-lng" type="number" step="any" placeholder="Longitud">
+        </div>
+        <div id="manual-utm-inputs" style="display:none;">
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 6px;">
+            <input class="addpt-input" id="addpt-zona" type="number" min="1" max="60" placeholder="Zona (ej. 19)">
+            <select class="cfg-select" id="addpt-hemisferio" style="background:#0d1117; color:var(--text-primary); border:1px solid var(--border); font-family:var(--font-mono); font-size:11px; padding:5px;">
+              <option value="S">Sur (S)</option>
+              <option value="N">Norte (N)</option>
+            </select>
+          </div>
+          <input class="addpt-input" id="addpt-este" type="number" step="any" placeholder="Este (X)">
+          <input class="addpt-input" id="addpt-norte" type="number" step="any" placeholder="Norte (Y)">
+        </div>
+        <input class="addpt-input" id="addpt-elev" type="text" placeholder="Altura (m) [Opcional]">
         <input class="addpt-input" id="addpt-label" type="text" placeholder="Etiqueta (opcional)">
         <button class="addpt-btn" onclick="agregarPuntoManual()">+ Agregar punto</button>
         <div class="addpt-status" id="addpt-status"></div>
@@ -1651,9 +1715,9 @@
         </div>
         <div class="linea-cfg-row">
           <span class="linea-cfg-lbl">Grosor</span>
-          <input type="range" id="linea-grosor" class="linea-cfg-range" min="1" max="12" value="2"
+          <input type="range" id="linea-grosor" class="linea-cfg-range" min="1" max="12" value="1"
             oninput="document.getElementById('linea-grosor-val').textContent=this.value">
-          <span class="linea-cfg-val" id="linea-grosor-val">2</span>
+          <span class="linea-cfg-val" id="linea-grosor-val">1</span>
         </div>
         <div class="linea-pt-indicator" id="linea-pt-indicator">
           <span id="linea-pt-a">A: —</span>
@@ -1670,6 +1734,17 @@
 
     <div id="viewport">
       <canvas id="three-canvas"></canvas>
+
+      <div id="elevation-legend">
+        <div class="legend-title">Altitud</div>
+        <div class="legend-body">
+          <div class="legend-bar"></div>
+          <div class="legend-labels">
+            <span id="legend-max">0m</span>
+            <span id="legend-min">0m</span>
+          </div>
+        </div>
+      </div>
 
       <div id="no-data-overlay">
         <div class="ndo-icon">🧊</div>
@@ -1732,6 +1807,11 @@
             <option value="10">×10</option>
             <option value="20">×20</option>
           </select>
+        </div>
+        <div class="opt-row" style="padding-bottom: 8px;">
+          <label style="cursor: pointer; display: flex; align-items: center; gap: 8px;">
+            <input type="checkbox" id="chk-cuerpo-solido" checked> Generar cuerpo sólido (bloque)
+          </label>
         </div>
         <button class="cfg-apply" onclick="graficarArea()">▶ Generar malla</button>
         <button class="cfg-clear" onclick="limpiarMalla()">✕ Limpiar malla</button>
@@ -1936,6 +2016,32 @@
         <div class="pts-list" id="pts-list">
           <div class="pts-empty" id="pts-empty">Sin puntos cargados.</div>
         </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="export-linea-modal" style="display: none; position: fixed; inset: 0; z-index: 1000; background: rgba(5, 12, 22, .88); align-items: center; justify-content: center;">
+    <div class="prefs-box" style="width: 340px; box-shadow: 0 0 40px rgba(0, 200, 255, 0.2);">
+      <div class="prefs-header">
+        <div class="prefs-title">📊 Exportar Perfil de Línea</div>
+        <button class="excel-close" onclick="cerrarModalExportar()">✕</button>
+      </div>
+      <div class="prefs-body" style="padding: 18px; display: flex; flex-direction: column; gap: 14px;">
+        <div class="editpt-row">
+          <div class="editpt-lbl">Cantidad de puntos a generar</div>
+          <input class="editpt-input" id="export-num-pts" type="number" min="2" value="10" style="color: var(--accent);">
+        </div>
+        <div class="editpt-row">
+          <div class="editpt-lbl">Punto de inicio (Cota 0.00)</div>
+          <select class="col-map-sel" id="export-start-pt">
+            <option value="A" selected>Extremo Inicial (Punto A)</option>
+            <option value="B">Extremo Final (Punto B)</option>
+          </select>
+        </div>
+      </div>
+      <div class="prefs-footer">
+        <button class="excel-btn-cancel" onclick="cerrarModalExportar()">Cancelar</button>
+        <button class="excel-btn-ok" onclick="procesarYDescargarExcel()">📥 Descargar Excel</button>
       </div>
     </div>
   </div>
@@ -2271,6 +2377,7 @@
     function limpiarMalla() {
       if (mallaMesh) { scene.remove(mallaMesh); mallaMesh.geometry.dispose(); mallaMesh.material.dispose(); mallaMesh = null; }
       if (mallaWire) { scene.remove(mallaWire); mallaWire.geometry.dispose(); mallaWire.material.dispose(); mallaWire = null; }
+      document.getElementById('elevation-legend').style.display = 'none';
     }
 
     function graficarArea() {
@@ -2308,9 +2415,26 @@
       const maxElev = Math.max(...elevs);
       const elevRange = (maxElev - minElev) || 1;
 
+      // Calcular cotas reales en metros desde el Excel e interactuar con la Leyenda
+      const realElevs = geoPoints.map(p => p.elev);
+      const realMin = Math.min(...realElevs);
+      const realMax = Math.max(...realElevs);
+      const legendEl = document.getElementById('elevation-legend');
+
+      if (colorMode === 'elevation') {
+        document.getElementById('legend-max').textContent = realMax.toFixed(1) + 'm';
+        document.getElementById('legend-min').textContent = realMin.toFixed(1) + 'm';
+        legendEl.style.display = 'flex';
+      } else {
+        legendEl.style.display = 'none';
+      }
+
+      
+
       // Función de color por elevación (azul → cian → verde → amarillo → rojo)
       function elevColor(sy) {
-        const t = (sy - minElev) / elevRange; // 0..1
+        // Limitamos t entre 0 y 1 para que la base y paredes inferiores no rompan el gradiente
+        const t = Math.max(0, Math.min(1, (sy - minElev) / elevRange)); 
         // Paleta terreno apagada: agua profunda → verde bosque → tierra → roca → nieve
         const stops = [
           [0.20, 0.32, 0.45],  // azul oscuro (agua/bajo)
@@ -2325,79 +2449,153 @@
         return [a[0] + (b[0] - a[0]) * u, a[1] + (b[1] - a[1]) * u, a[2] + (b[2] - a[2]) * u];
       }
 
+      // --- CONSTRUCCIÓN DE CUERPO SÓLIDO CLOSED VOLUME ---
+      // Definimos una elevación base por debajo de la cota mínima para darle grosor al bloque
+      const baseElev = minElev - (elevRange * 0.2 + 5);
+
+      // Precalcular normales suavizadas de los vértices superiores para el modo 'smooth'
+      const vertexNormals = pts.map(() => new THREE.Vector3(0, 0, 0));
+      triangles.forEach(tri => {
+        const p0 = pts[tri[0]], p1 = pts[tri[1]], p2 = pts[tri[2]];
+        const edge1 = new THREE.Vector3(p1.sx - p0.sx, p1.sy - p0.sy, p1.sz - p0.sz);
+        const edge2 = new THREE.Vector3(p2.sx - p0.sx, p2.sy - p0.sy, p2.sz - p0.sz);
+        const normal = new THREE.Vector3().crossVectors(edge1, edge2).normalize();
+        if (normal.y < 0) normal.negate();
+        vertexNormals[tri[0]].add(normal);
+        vertexNormals[tri[1]].add(normal);
+        vertexNormals[tri[2]].add(normal);
+      });
+      vertexNormals.forEach(n => n.normalize());
+
+      // 1. CARA SUPERIOR: Malla del terreno original
       triangles.forEach(tri => {
         const [i0, i1, i2] = tri;
         const p0 = pts[i0], p1 = pts[i1], p2 = pts[i2];
-
         const v0 = new THREE.Vector3(p0.sx, p0.sy, p0.sz);
         const v1 = new THREE.Vector3(p1.sx, p1.sy, p1.sz);
         const v2 = new THREE.Vector3(p2.sx, p2.sy, p2.sz);
-
-        // Calcular normal y corregir orden de vértices para que siempre apunte a Y+
         const edge1 = v1.clone().sub(v0);
         const edge2 = v2.clone().sub(v0);
         const normal = new THREE.Vector3().crossVectors(edge1, edge2).normalize();
 
-        // Si la normal apunta hacia abajo, invertir el orden de v1 y v2
-        // para que el winding quede correcto en lugar de solo negar la normal
-        const verts = normal.y < 0
-          ? [v0, v2, v1]
-          : [v0, v1, v2];
-        const faceNormal = normal.y < 0 ? normal.negate() : normal;
+        const idxs = normal.y < 0 ? [i0, i2, i1] : [i0, i1, i2];
+        const faceNormal = normal.y < 0 ? normal.clone().negate() : normal;
 
-        verts.forEach((v, vi) => {
-          posArr.push(v.x, v.y, v.z);
-          normArr.push(faceNormal.x, faceNormal.y, faceNormal.z);
-
+        idxs.forEach(idx => {
+          const p = pts[idx];
+          posArr.push(p.sx, p.sy, p.sz);
+          if (smoothMode === 'smooth') {
+            normArr.push(vertexNormals[idx].x, vertexNormals[idx].y, vertexNormals[idx].z);
+          } else {
+            normArr.push(faceNormal.x, faceNormal.y, faceNormal.z);
+          }
           if (colorMode === 'elevation') {
-            const p = [p0, p1, p2][vi];
             const c = elevColor(p.sy);
             colorArr.push(c[0], c[1], c[2]);
           } else {
-            colorArr.push(0, 0.78, 1); // cian
+            colorArr.push(0, 0.78, 1);
           }
         });
       });
 
-      const geo = new THREE.BufferGeometry();
-
-      if (smoothMode === 'smooth') {
-        // Geometría indexada: vértices únicos compartidos entre triángulos
-        // Así computeVertexNormals() puede promediar normales entre caras vecinas
-        const uniqueVerts = [];
-        const uniqueColors = [];
-        const vertMap = new Map();
-        const indices = [];
-
+      // Verificar si el usuario tiene activo el checkbox de cuerpo sólido
+      if (document.getElementById('chk-cuerpo-solido').checked) {
+        
+        // 2. CARA INFERIOR: Base completamente plana e invertida para mirar hacia abajo
         triangles.forEach(tri => {
-          tri.forEach((ptIdx, vi) => {
-            const p = pts[ptIdx];
-            const key = ptIdx;
-            if (!vertMap.has(key)) {
-              vertMap.set(key, uniqueVerts.length / 3);
-              uniqueVerts.push(p.sx, p.sy, p.sz);
-              if (colorMode === 'elevation') {
-                const c = elevColor(p.sy);
-                uniqueColors.push(c[0], c[1], c[2]);
-              } else {
-                uniqueColors.push(0, 0.78, 1);
-              }
+          const [i0, i1, i2] = tri;
+          const p0 = pts[i0], p1 = pts[i1], p2 = pts[i2];
+          const v0 = new THREE.Vector3(p0.sx, p0.sy, p0.sz);
+          const v1 = new THREE.Vector3(p1.sx, p1.sy, p1.sz);
+          const v2 = new THREE.Vector3(p2.sx, p2.sy, p2.sz);
+          const edge1 = v1.clone().sub(v0);
+          const edge2 = v2.clone().sub(v0);
+          const normal = new THREE.Vector3().crossVectors(edge1, edge2).normalize();
+
+          const idxs = normal.y < 0 ? [i0, i1, i2] : [i0, i2, i1];
+
+          idxs.forEach(idx => {
+            const p = pts[idx];
+            posArr.push(p.sx, baseElev, p.sz);
+            normArr.push(0, -1, 0);
+            if (colorMode === 'elevation') {
+              const c = elevColor(baseElev);
+              colorArr.push(c[0], c[1], c[2]);
+            } else {
+              colorArr.push(0, 0.78, 1);
             }
-            indices.push(vertMap.get(key));
           });
         });
 
-        geo.setIndex(indices);
-        geo.setAttribute('position', new THREE.Float32BufferAttribute(uniqueVerts, 3));
-        geo.setAttribute('color', new THREE.Float32BufferAttribute(uniqueColors, 3));
-        geo.computeVertexNormals(); // ahora sí funciona: promedia entre caras vecinas
+        // 3. PAREDES LATERALES: Identificar aristas del contorno exterior y extruirlas verticalmente
+        const edgeCounts = {};
+        triangles.forEach(tri => {
+          const p0 = pts[tri[0]], p1 = pts[tri[1]], p2 = pts[tri[2]];
+          const v0 = new THREE.Vector3(p0.sx, p0.sy, p0.sz);
+          const v1 = new THREE.Vector3(p1.sx, p1.sy, p1.sz);
+          const v2 = new THREE.Vector3(p2.sx, p2.sy, p2.sz);
+          const edge1 = v1.clone().sub(v0);
+          const edge2 = v2.clone().sub(v0);
+          const normal = new THREE.Vector3().crossVectors(edge1, edge2).normalize();
+          const orderedTri = normal.y < 0 ? [tri[0], tri[2], tri[1]] : [tri[0], tri[1], tri[2]];
+          const edges = [[orderedTri[0], orderedTri[1]], [orderedTri[1], orderedTri[2]], [orderedTri[2], orderedTri[0]]];
+          edges.forEach(e => {
+            const key = e[0] < e[1] ? `${e[0]}_${e[1]}` : `${e[1]}_${e[0]}`;
+            edgeCounts[key] = (edgeCounts[key] || 0) + 1;
+          });
+        });
 
-      } else {
-        // Geometría no-indexada con normales de cara (triángulos visibles)
-        geo.setAttribute('position', new THREE.Float32BufferAttribute(posArr, 3));
-        geo.setAttribute('color', new THREE.Float32BufferAttribute(colorArr, 3));
-        geo.setAttribute('normal', new THREE.Float32BufferAttribute(normArr, 3));
+        triangles.forEach(tri => {
+          const p0 = pts[tri[0]], p1 = pts[tri[1]], p2 = pts[tri[2]];
+          const v0 = new THREE.Vector3(p0.sx, p0.sy, p0.sz);
+          const v1 = new THREE.Vector3(p1.sx, p1.sy, p1.sz);
+          const v2 = new THREE.Vector3(p2.sx, p2.sy, p2.sz);
+          const edge1 = v1.clone().sub(v0);
+          const edge2 = v2.clone().sub(v0);
+          const normal = new THREE.Vector3().crossVectors(edge1, edge2).normalize();
+          const orderedTri = normal.y < 0 ? [tri[0], tri[2], tri[1]] : [tri[0], tri[1], tri[2]];
+          const edges = [[orderedTri[0], orderedTri[1]], [orderedTri[1], orderedTri[2]], [orderedTri[2], orderedTri[0]]];
+
+          edges.forEach(e => {
+            const key = e[0] < e[1] ? `${e[0]}_${e[1]}` : `${e[1]}_${e[0]}`;
+            if (edgeCounts[key] === 1) {
+              const pA = pts[e[0]];
+              const pB = pts[e[1]];
+              
+              const nWall = new THREE.Vector3(pB.sx - pA.sx, 0, pB.sz - pA.sz).cross(new THREE.Vector3(0, 1, 0)).normalize();
+
+              const wallVerts = [
+                { x: pA.sx, y: pA.sy, z: pA.sz, syColor: pA.sy },
+                { x: pA.sx, y: baseElev, z: pA.sz, syColor: baseElev },
+                { x: pB.sx, y: pB.sy, z: pB.sz, syColor: pB.sy },
+                { x: pB.sx, y: pB.sy, z: pB.sz, syColor: pB.sy },
+                { x: pA.sx, y: baseElev, z: pA.sz, syColor: baseElev },
+                { x: pB.sx, y: baseElev, z: pB.sz, syColor: baseElev }
+              ];
+
+              wallVerts.forEach(v => {
+                posArr.push(v.x, v.y, v.z);
+                normArr.push(nWall.x, nWall.y, nWall.z);
+                if (colorMode === 'elevation') {
+                  const c = elevColor(v.syColor);
+                  colorArr.push(c[0], c[1], c[2]);
+                } else {
+                  colorArr.push(0, 0.78, 1);
+                }
+              });
+            }
+          });
+        });
+
       }
+
+      
+
+      // Asignar los buffers unificados a la nueva geometría del volumen tridimensional sólido
+      const geo = new THREE.BufferGeometry();
+      geo.setAttribute('position', new THREE.Float32BufferAttribute(posArr, 3));
+      geo.setAttribute('color', new THREE.Float32BufferAttribute(colorArr, 3));
+      geo.setAttribute('normal', new THREE.Float32BufferAttribute(normArr, 3));
 
       let mat;
       if (colorMode === 'wireframe') {
@@ -2405,8 +2603,8 @@
       } else {
         mat = new THREE.MeshBasicMaterial({
           vertexColors: true,
-          side: THREE.DoubleSide,
-          transparent: true,
+          side: THREE.FrontSide, // Solo dibuja las caras exteriores del sólido
+          transparent: false,    // Desactivamos la transparencia para que el buffer de profundidad oculte lo de atrás
           polygonOffset: true,
           polygonOffsetFactor: 1,
           polygonOffsetUnits: 1,
@@ -2937,6 +3135,8 @@
           crearLineaTerreno(lineaPtsPicked[0].pos3d, lineaPtsPicked[1].pos3d);
           lineaPtsPicked = [];
           updateLineaIndicators();
+          // Apaga automáticamente el modo trazado para liberar el cursor e interactuar de inmediato
+          toggleLineaMode(document.getElementById('btn-linea-terreno'));
         }
         return;
       }
@@ -3078,35 +3278,152 @@
       closeEditPtModal();
     }
 
+    function toggleManualCoordInputs() {
+      const type = document.getElementById('addpt-type-select').value;
+      document.getElementById('manual-geo-inputs').style.display = type === 'geo' ? 'block' : 'none';
+      document.getElementById('manual-utm-inputs').style.display = type === 'utm' ? 'block' : 'none';
+    }
+
+    // Convertidor matemático WGS84 Lat/Lng a UTM para calibrar el origen relativo
+    function latLngToUtm(lat, lng) {
+      const zone = Math.floor((lng + 180) / 6) + 1;
+      const hemisferio = lat < 0 ? 'S' : 'N';
+      const latRad = lat * Math.PI / 180;
+      const lngRad = lng * Math.PI / 180;
+      const lngOrigin = ((zone - 1) * 6 - 180 + 3) * Math.PI / 180;
+      const a = 6378137.0;
+      const eccSquared = 0.00669437999013;
+      const k0 = 0.9996;
+      const eccPrimeSquared = eccSquared / (1 - eccSquared);
+      const N = a / Math.sqrt(1 - eccSquared * Math.sin(latRad) * Math.sin(latRad));
+      const T = Math.tan(latRad) * Math.tan(latRad);
+      const C = eccPrimeSquared * Math.cos(latRad) * Math.cos(latRad);
+      const A = Math.cos(latRad) * (lngRad - lngOrigin);
+      const M = a * ((1 - eccSquared / 4 - 3 * eccSquared * eccSquared / 64 - 5 * eccSquared * eccSquared * eccSquared / 256) * latRad
+        - (3 * eccSquared / 8 + 3 * eccSquared * eccSquared / 32 + 45 * eccSquared * eccSquared * eccSquared / 1024) * Math.sin(2 * latRad)
+        + (15 * eccSquared * eccSquared / 256 + 45 * eccSquared * eccSquared * eccSquared / 1024) * Math.sin(4 * latRad)
+        - (35 * eccSquared * eccSquared * eccSquared / 3072) * Math.sin(6 * latRad));
+      const UTMEste = k0 * N * (A + (1 - T + C) * A * A * A / 6 + (5 - 18 * T + T * T + 72 * C - 58 * eccPrimeSquared) * A * A * A * A * A / 120) + 500000.0;
+      let UTMNorte = k0 * (M + N * Math.tan(latRad) * (A * A / 2 + (5 - T + 9 * C + 4 * C * C) * A * A * A * A / 24 + (61 - 58 * T + T * T + 600 * C - 330 * eccPrimeSquared) * A * A * A * A * A * A / 720));
+      if (lat < 0) UTMNorte += 10000000.0;
+      return { este: UTMEste, norte: UTMNorte, zona: zone, hemisferio: hemisferio };
+    }
+
     function agregarPuntoManual() {
-      const lat = parseFloat(document.getElementById('addpt-lat').value);
-      const lng = parseFloat(document.getElementById('addpt-lng').value);
-      const elev = parseFloat(document.getElementById('addpt-elev').value);
+      const type = document.getElementById('addpt-type-select').value;
+      const elevInput = document.getElementById('addpt-elev').value.trim();
       const label = document.getElementById('addpt-label').value.trim() || ('M' + (addedPtMeshes.length / 2 + 1));
       const statusEl = document.getElementById('addpt-status');
 
-      if (isNaN(lat) || isNaN(lng) || isNaN(elev)) {
-        statusEl.textContent = 'Completa Lat, Lng y Altura.';
-        statusEl.className = 'addpt-status show err'; return;
-      }
-      if (!geoOrigin) {
-        statusEl.textContent = 'Sin origen definido. Importa puntos primero.';
+      if (geoPoints.length === 0) {
+        statusEl.textContent = 'No hay puntos cargados en el sistema.';
         statusEl.className = 'addpt-status show err'; return;
       }
 
+      // Precalcular el centro de la nube de puntos importada
+      const pts3 = geoPoints.map(p => {
+        let gx = p.x, gy = p.y;
+        if (gx === null || gx === undefined || gy === null || gy === undefined) {
+          const lat0 = geoOrigin ? geoOrigin.lat : p.lat;
+          const lng0 = geoOrigin ? geoOrigin.lng : p.lng;
+          gx = (p.lng - lng0) * 111320 * Math.cos(lat0 * Math.PI / 180);
+          gy = (p.lat - lat0) * 111320;
+        }
+        return { x: gx, z: -gy };
+      });
+      const cx = pts3.reduce((s, p) => s + p.x, 0) / pts3.length;
+      const cz = pts3.reduce((s, p) => s + p.z, 0) / pts3.length;
+      const cy = geoPoints.reduce((s, p) => s + (p.elev || 0), 0) / geoPoints.length;
+
+      let px_local, pz_local;
+      const esGeoBase = geoOrigin && geoPoints.every(p => p.x === null || p.x === undefined);
+
+      if (type === 'geo') {
+        const lat = parseFloat(document.getElementById('addpt-lat').value);
+        const lng = parseFloat(document.getElementById('addpt-lng').value);
+        if (isNaN(lat) || isNaN(lng)) {
+          statusEl.textContent = 'Completa Latitud y Longitud.';
+          statusEl.className = 'addpt-status show err'; return;
+        }
+        if (!geoOrigin) {
+          statusEl.textContent = 'Sin origen definido. Importa puntos primero.';
+          statusEl.className = 'addpt-status show err'; return;
+        }
+        const lat0 = geoOrigin.lat, lng0 = geoOrigin.lng;
+        px_local = (lng - lng0) * 111320 * Math.cos(lat0 * Math.PI / 180);
+        const py_local = (lat - lat0) * 111320;
+        pz_local = -py_local;
+      } else {
+        const zonaInput = parseInt(document.getElementById('addpt-zona').value);
+        const hemisferioInput = document.getElementById('addpt-hemisferio').value;
+        const este = parseFloat(document.getElementById('addpt-este').value);
+        const norte = parseFloat(document.getElementById('addpt-norte').value);
+
+        if (isNaN(zonaInput) || !hemisferioInput || isNaN(este) || isNaN(norte)) {
+          statusEl.textContent = 'Completa todos los campos UTM (Zona, Hemisferio, Este, Norte).';
+          statusEl.className = 'addpt-status show err'; return;
+        }
+
+        if (esGeoBase) {
+          const utmOrigen = latLngToUtm(geoOrigin.lat, geoOrigin.lng);
+          if (zonaInput !== utmOrigen.zona || hemisferioInput !== utmOrigen.hemisferio) {
+            statusEl.textContent = `La Zona/Hemisferio no coincide con el mapa (Mapa: ${utmOrigen.zona}${utmOrigen.hemisferio}).`;
+            statusEl.className = 'addpt-status show err'; return;
+          }
+          px_local = este - utmOrigen.este;
+          const py_local = norte - utmOrigen.norte;
+          pz_local = -py_local;
+        } else {
+          px_local = este;
+          pz_local = -norte;
+        }
+      }
+
+      const sx_val = px_local - cx;
+      const sz_val = pz_local - cz;
+      
       const hs = window._horizScale || 1;
       const es = window._elevScale || 1;
-      const cy = window._cy || 0;
-      const lat0 = geoOrigin.lat, lng0 = geoOrigin.lng;
-      const xm = (lng - lng0) * 111320 * Math.cos(lat0 * Math.PI / 180);
-      const zm = (lat - lat0) * 111320;
-      const pos3d = new THREE.Vector3(xm * hs, (elev - cy) * hs * es, -zm * hs);
+      const cy_val = window._cy !== undefined ? window._cy : cy;
+
+      let sy;
+
+      if (elevInput === "") {
+        if (!mallaMesh) {
+          statusEl.textContent = 'Genera la malla de área primero para auto-detectar la altura.';
+          statusEl.className = 'addpt-status show err'; return;
+        }
+        
+        const raycaster = new THREE.Raycaster();
+        const highY = 99999;
+        raycaster.set(new THREE.Vector3(sx_val, highY, sz_val), new THREE.Vector3(0, -1, 0));
+        const hits = raycaster.intersectObject(mallaMesh);
+        
+        if (hits.length > 0) {
+          sy = hits[0].point.y;
+        } else {
+          statusEl.textContent = 'Error: El punto está fuera del terreno generado y no tiene altura.';
+          statusEl.className = 'addpt-status show err'; return;
+        }
+      } else {
+        const elev = parseFloat(elevInput);
+        if (isNaN(elev)) {
+          statusEl.textContent = 'La altura debe ser un número válido.';
+          statusEl.className = 'addpt-status show err'; return;
+        }
+        sy = (elev - cy_val) * hs * es;
+      }
+
+      const pos3d = new THREE.Vector3(sx_val, sy, sz_val);
 
       colocarPuntoFijo(pos3d, label);
       statusEl.textContent = '✔ Punto agregado correctamente.';
       statusEl.className = 'addpt-status show ok';
+      
       document.getElementById('addpt-lat').value = '';
       document.getElementById('addpt-lng').value = '';
+      document.getElementById('addpt-este').value = '';
+      document.getElementById('addpt-norte').value = '';
       document.getElementById('addpt-elev').value = '';
       document.getElementById('addpt-label').value = '';
     }
@@ -3363,6 +3680,9 @@
           <div class="linea-info-lbl">Longitud real (3D)</div>
           <div class="linea-info-val">${longitud.toFixed(2)} m</div>
         </div>
+        <div style="padding: 12px 16px;">
+          <button class="cfg-apply" onclick="abrirModalExportar(${idx})">📊 Exportar Perfil</button>
+        </div>
       `;
     }
 
@@ -3370,6 +3690,105 @@
       const panel = document.getElementById('linea-info-panel');
       panel.classList.remove('show');
       panel.innerHTML = '<div class="linea-info-empty">Haz clic en una tubería<br>para ver sus propiedades.</div>';
+    }
+
+    let exportLineaIdx = null;
+
+    function abrirModalExportar(idx) {
+      exportLineaIdx = idx;
+      document.getElementById('export-linea-modal').style.display = 'flex';
+    }
+
+    function cerrarModalExportar() {
+      document.getElementById('export-linea-modal').style.display = 'none';
+      exportLineaIdx = null;
+    }
+
+    function procesarYDescargarExcel() {
+      if (exportLineaIdx === null) return;
+      const obj = lineaObjects[exportLineaIdx];
+      if (!obj) return;
+
+      const numPts = parseInt(document.getElementById('export-num-pts').value) || 10;
+      if (numPts < 2) {
+        alert("La cantidad de puntos debe ser igual o mayor a 2.");
+        return;
+      }
+
+      const startChoice = document.getElementById('export-start-pt').value;
+      
+      // Determinar orientación elegida por el usuario
+      let ptStart = obj.data.ptA;
+      let ptEnd = obj.data.ptB;
+      if (startChoice === 'B') {
+        ptStart = obj.data.ptB;
+        ptEnd = obj.data.ptA;
+      }
+
+      // Muestrear de forma perfectamente equivalente e incremental
+      const ptsMesh = sampleLineOnTerrain(ptStart, ptEnd, numPts - 1);
+
+      const es = window._elevScale || 1;
+      const cy = window._cy || 0;
+
+      const rows = [];
+      // Estructura de cabeceras solicitadas
+      rows.push([
+        "Punto", 
+        "Latitud", 
+        "Longitud", 
+        "Altitud (m)", 
+        "Distancia sobre Terreno Acumulada (m)", 
+        "Distancia Horizontal Acumulada (m)"
+      ]);
+
+      let accum3D = 0;
+      let accum2D = 0;
+
+      for (let i = 0; i < ptsMesh.length; i++) {
+        const pt = ptsMesh[i];
+        
+        if (i > 0) {
+          const prevPt = ptsMesh[i - 1];
+          const dx = pt.x - prevPt.x;
+          const dy = (pt.y - prevPt.y) / es; // Remueve la escala visual z-fighting aplicada en escena
+          const dz = pt.z - prevPt.z;
+          
+          accum3D += Math.sqrt(dx*dx + dy*dy + dz*dz);
+          accum2D += Math.sqrt(dx*dx + dz*dz);
+        }
+
+        // Revertir compensación vertical (+0.5) que se usa en sampleLineOnTerrain para renderizar sobre el mapa
+        const currentY = pt.y - 0.5;
+        const xm = pt.x;
+        const zm = -pt.z;
+        const elev = currentY / es + cy;
+
+        let lat = "—";
+        let lng = "—";
+        if (geoOrigin) {
+          const lat0 = geoOrigin.lat, lng0 = geoOrigin.lng;
+          lat = lat0 + zm / 111320;
+          lng = lng0 + xm / (111320 * Math.cos(lat0 * Math.PI / 180));
+        }
+
+        rows.push([
+          i + 1,
+          geoOrigin ? parseFloat(lat.toFixed(6)) : "—",
+          geoOrigin ? parseFloat(lng.toFixed(6)) : "—",
+          parseFloat(elev.toFixed(3)),
+          parseFloat(accum3D.toFixed(3)),
+          parseFloat(accum2D.toFixed(3))
+        ]);
+      }
+
+      // Compilar y descargar el archivo XLSX mediante SheetJS
+      const ws = XLSX.utils.aoa_to_sheet(rows);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Perfil Topográfico");
+      XLSX.writeFile(wb, `perfil_longitudinal_linea_${exportLineaIdx + 1}.xlsx`);
+
+      cerrarModalExportar();
     }
 
     let areaOpen = false;
